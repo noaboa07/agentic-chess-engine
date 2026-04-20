@@ -1,6 +1,11 @@
-from fastapi import FastAPI
+from fastapi import FastAPI, HTTPException
 from fastapi.middleware.cors import CORSMiddleware
+from pydantic import BaseModel
 import chess
+from dotenv import load_dotenv
+from services.stockfish import analyze_move
+
+load_dotenv()
 
 app = FastAPI(title="Agentic Chess Engine API")
 
@@ -12,6 +17,11 @@ app.add_middleware(
 )
 
 
+class MoveRequest(BaseModel):
+    fen: str
+    move: str
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "agentic-chess-engine"}
@@ -19,7 +29,6 @@ async def health() -> dict[str, str]:
 
 @app.get("/api/board/validate")
 async def validate_fen(fen: str) -> dict[str, bool | str]:
-    """Validate a FEN string and return basic board info."""
     try:
         board = chess.Board(fen)
         return {
@@ -30,3 +39,20 @@ async def validate_fen(fen: str) -> dict[str, bool | str]:
         }
     except ValueError:
         return {"valid": False, "error": "Invalid FEN string"}
+
+
+@app.post("/api/move")
+def process_move(req: MoveRequest) -> dict:
+    try:
+        result = analyze_move(req.fen, req.move)
+        return {
+            "fen_after": result.fen_after,
+            "best_move": result.best_move,
+            "evaluation": result.evaluation,
+            "is_blunder": result.is_blunder,
+            "classification": result.classification,
+        }
+    except ValueError as e:
+        raise HTTPException(status_code=400, detail=str(e))
+    except Exception:
+        raise HTTPException(status_code=500, detail="Engine error — is Stockfish installed?")
