@@ -1,35 +1,30 @@
 import os
 from functools import lru_cache
-from langchain_google_genai import ChatGoogleGenerativeAI
+from langchain_groq import ChatGroq
 from langchain_core.messages import SystemMessage, HumanMessage
+from personas.personas import get_persona
 
-MODEL = "gemini-1.5-flash"
+MODEL = "llama-3.3-70b-versatile"
 
 
 @lru_cache(maxsize=1)
-def _get_llm() -> ChatGoogleGenerativeAI:
-    return ChatGoogleGenerativeAI(
+def _get_llm() -> ChatGroq:
+    return ChatGroq(
         model=MODEL,
-        google_api_key=os.getenv("GOOGLE_API_KEY", ""),
-        max_output_tokens=300,
+        api_key=os.getenv("GROQ_API_KEY", ""),
+        max_tokens=300,
         temperature=0.7,
     )
 
-_SYSTEM_PROMPT = """\
-You are an expert chess coach providing real-time feedback during a live game.
 
-After each move you receive the move played, the position evaluation, the move \
-classification, and the engine's best alternative. Your job is to give the player \
-a short, insightful coaching note.
-
-Rules:
-- 2–3 sentences maximum. Be concise.
-- Explain WHY the move was strong or weak — not just the classification label.
-- If it was a mistake or blunder, briefly indicate what the better idea was.
-- If it was good or brilliant, reinforce the strategic concept behind it.
-- Keep the tone calm and analytical. Do not repeat the raw eval number.
-- Do not use algebraic chess notation beyond the UCI move itself.\
-"""
+def should_coach(move_number: int, classification: str, hint_requested: bool) -> bool:
+    if hint_requested:
+        return True
+    if move_number <= 5:
+        return True
+    if classification in ("brilliant", "mistake", "blunder"):
+        return True
+    return False
 
 
 def get_coaching_message(
@@ -37,7 +32,13 @@ def get_coaching_message(
     evaluation: dict,
     classification: str,
     best_move: str,
-) -> str:
+    move_number: int,
+    hint_requested: bool,
+    persona_id: str = "default",
+) -> str | None:
+    if not should_coach(move_number, classification, hint_requested):
+        return None
+
     eval_str = (
         f"Mate in {abs(evaluation['value'])}"
         if evaluation["type"] == "mate"
@@ -52,8 +53,9 @@ def get_coaching_message(
         "Give me your coaching feedback."
     )
 
+    persona = get_persona(persona_id)
     messages = [
-        SystemMessage(content=_SYSTEM_PROMPT),
+        SystemMessage(content=persona.system_prompt),
         HumanMessage(content=user_content),
     ]
 

@@ -1,20 +1,53 @@
 # Agentic Chess Engine — Implementation Plan
 
-## Current State
+## Current State (as of Phase 5 complete)
 
 ```
 frontend/
   app/
-    page.tsx              ✅ Layout shell (dark bg, flex)
+    page.tsx                    ✅ Layout: PersonaPanel above board, CoachPanel beside
     components/
-      ChessBoard.tsx      ✅ Drag-and-drop via react-chessboard + chess.js, FEN tracking
-      CoachPanel.tsx      ✅ Health-check polling, connection indicator
+      ChessBoard.tsx            ✅ Engine move application, board reset on persona change, timeout cancel
+      CoachPanel.tsx            ✅ Teach Mode toggle, Hint button, global mute, persona selector
+      PersonaPanel.tsx          ✅ Active opponent avatar, name, Elo badge
+      AtmosphereBackground.tsx  ✅ 3-track crossfade (calm/dramatic/hype), autoplay-safe start
+    context/
+      GameContext.tsx           ✅ Full game state, globalMuted, FRESH_GAME_STATE reset on persona change
 backend/
-  main.py                 ✅ /health + /api/board/validate (FEN → turn/check/checkmate)
-  requirements.txt        ✅ fastapi, uvicorn, python-chess
+  main.py                       ✅ /health, /api/game/new, /api/move, /api/tts
+  personas/personas.py          ✅ 6-tier Noahverse ladder (200–2800 Elo)
+  services/
+    stockfish.py                ✅ CPL classification, opening exemption, skill-throttled engine reply
+    coach.py                    ✅ should_coach gate (opening/blunder/hint), Groq Llama 3.3 70B
+    tts.py                      ✅ ElevenLabs TTS
 ```
 
-**Nothing is wired together yet.** ChessBoard moves are validated locally (chess.js) but never sent to the backend. CoachPanel shows a green dot and nothing else.
+### Classification System (CPL-based)
+| Label | CPL | Note |
+|-------|-----|------|
+| Brilliant | 0 + delta > 50cp | Tactical shot / sacrifice |
+| Great | 0 | Exact engine top choice |
+| Good | 1–40 | |
+| Inaccuracy | 41–90 | Auto-upgraded to Good in moves 1–10 |
+| Mistake | 91–200 | |
+| Blunder | >200 | |
+
+### Atmosphere State Machine
+| State | Trigger | Glow | Audio |
+|-------|---------|------|-------|
+| Hype | 3 consecutive Good/Great/Brilliant | Indigo | hype.mp3 |
+| Dramatic | 3 consecutive Inaccuracy/Mistake/Blunder | Red | dramatic.mp3 |
+| Calm | Default | None | calm.mp3 |
+
+### Noahverse Ladder
+| Persona | Elo | Skill Level |
+|---------|-----|-------------|
+| Clown Noah | 200 | 0 (depth=1) |
+| Gym Bro Noah | 700 | 3 |
+| Rat Main Noah | 1200 | 6 |
+| 4.0 GPA Noah | 1700 | 11 |
+| Devil Noah | 2200 | 16 |
+| God Noah | 2800 | 20 |
 
 ---
 
@@ -24,188 +57,120 @@ backend/
 User Move (drag/drop)
        │
        ▼
-ChessBoard.tsx  ──POST /api/move──▶  FastAPI
-                                         │
-                                    python-chess (validate + Stockfish eval)
-                                         │
-                                    LangChain + Claude (coaching text)
-                                         │
-                ◀── { stockfish_eval, best_move, coach_message } ──
+ChessBoard.tsx ──POST /api/move──▶ FastAPI
+                                       │
+                                  python-chess + Stockfish (CPL eval + engine reply)
+                                       │
+                                  coach.py (gated LLM via Groq)
+                                       │
+               ◀── { engine_move, evaluation, classification, coach_message } ──
        │
        ▼
-CoachPanel.tsx (render coaching text + eval bar)
+GameContext (accumulates move history in state — NO per-move Firestore writes)
        │
-       ▼
-ElevenLabs TTS (stream audio of coach message)
-       │
-       ▼
-Firebase (persist game + blunder log)
+       ├──▶ CoachPanel (coach message + TTS)
+       ├──▶ AtmosphereBackground (intensity → music/color)
+       └──▶ On game end → single batch Firestore write
 ```
 
 ---
 
-## Phase 1 — Move Pipeline (Backend ↔ Frontend)
+## Phase 6 — Supabase Auth & Data Persistence
 
-**Goal:** Every legal move the user makes gets sent to the backend and returns Stockfish analysis.
+**Goal:** Email/Password auth with username registration. Single batch Supabase insert on game end. RLS enforced at DB level.
 
-### Backend
-
-- [ ] Add `POST /api/move` endpoint
-  - Accepts: `{ fen: string, move: string }` (move in UCI format, e.g. `e2e4`)
-  - Validates move with `python-chess`
-  - Runs Stockfish via `chess.engine.SimpleEngine` (bundled binary)
-  - Returns:
-    ```json
-    {
-      "fen_after": "...",
-      "best_move": "d7d5",
-      "evaluation": { "type": "cp", "value": -35 },
-      "is_blunder": false,
-      "classification": "good" // brilliant | good | inaccuracy | mistake | blunder
-    }
-    ```
-- [ ] Download/bundle Stockfish binary into `backend/stockfish/`
-- [ ] Add `python-dotenv` + `.env` for Stockfish path config
-- [ ] Add `POST /api/game/start` — resets engine session, returns starting FEN
-
-### Frontend
-
-- [ ] In `ChessBoard.tsx`, after a successful `chess.move()`, `POST /api/move` with current FEN + move
-- [ ] Handle the response: update board to `fen_after`, store eval + classification in state
-- [ ] Pass `{ evaluation, classification, best_move }` up to parent or into shared context
-- [ ] Show a loading state on the board while awaiting response
-
-### Shared State
-
-- [ ] Create `GameContext.tsx` (React Context)
-  - Holds: `fen`, `evaluation`, `lastClassification`, `coachMessage`, `persona`
-  - Wrap `page.tsx` in `<GameProvider>`
-
----
-
-## Phase 2 — AI Coaching Layer
-
-**Goal:** After each move, the backend calls Claude via LangChain and returns a coaching message.
-
-### Backend
-
-- [ ] Install: `langchain`, `langchain-google-genai`
-- [ ] Create `services/coach.py`
-  - `get_coaching_message(fen, move, evaluation, classification, persona, history) -> str`
-  - Uses LangChain `ChatGoogleGenerativeAI` with `gemini-1.5-flash` (free tier)
-  - Only the delta (last move + eval) is sent as the user turn — never the full PGN.
-  - Persona is injected into the system prompt template (see Phase 4)
-- [ ] Add `coach_message: str` to `/api/move` response
-- [ ] Store `GOOGLE_API_KEY` in `backend/.env`
-
-### Frontend
-
-- [ ] `CoachPanel.tsx`: replace health-check placeholder with coach message display
-  - Render `coachMessage` from `GameContext`
-  - Markdown-safe text rendering
-  - Smooth fade-in animation on new message
-
----
-
-## Phase 3 — ElevenLabs TTS
-
-**Goal:** Coach message is spoken aloud in a custom voice after each move.
-
-### Backend
-
-- [ ] Install: `elevenlabs` (official Python SDK)
-- [ ] Create `services/tts.py`
-  - `stream_audio(text, voice_id) -> bytes`
-  - Returns MP3 bytes streamed from ElevenLabs
-- [ ] Add `GET /api/tts?message=...` or return base64 audio in `/api/move` response
-  - Prefer a separate `/api/tts` endpoint to keep move latency low (fire-and-forget from frontend)
-- [ ] Store `ELEVENLABS_API_KEY` + `ELEVENLABS_VOICE_ID` in `backend/.env`
-
-### Frontend
-
-- [ ] After receiving `coachMessage`, fire `GET /api/tts?message=...`
-- [ ] Play returned audio via `new Audio(url).play()` or Web Audio API
-- [ ] Add a mute toggle in `CoachPanel.tsx`
-
----
-
-## Phase 4 — Persona System
-
-**Goal:** User can switch between coaching personas that change tone, style, and aggression.
-
-### Personas (MVP)
-
-| ID | Name | Tone |
-|----|------|------|
-| `default` | Grandmaster | Calm, analytical, Socratic |
-| `devil_noah` | Devil Noah | Ruthless, trash-talking, brutally honest |
-| `hype_man` | Hype Man | Overly enthusiastic, celebrates every move |
-| `beginner_coach` | Coach Mike | Patient, simple language, encouraging |
-
-### Backend
-
-- [ ] Create `personas/` directory with a `personas.json` or `personas.py` defining each persona's system prompt template
-- [ ] `/api/move` accepts optional `persona: string` field
-- [ ] `coach.py` selects the correct system prompt by persona ID
-
-### Frontend
-
-- [ ] Add persona selector UI to `CoachPanel.tsx` (dropdown or icon buttons)
-- [ ] Store active persona in `GameContext`
-- [ ] Send persona ID with every `/api/move` request
-
----
-
-## Phase 5 — Intensity / Atmosphere System
-
-**Goal:** The UI and audio dynamically respond to the quality of play.
-
-### Logic
-
-- Track a rolling 3-move window of classifications in `GameContext`
-- If 3 consecutive "brilliant" moves → **Hype mode**
-- If 2+ blunders → **Tension mode**
-
-### Frontend
-
-- [ ] `useIntensity.ts` hook — computes current intensity level from move history
-- [ ] Background music player (`/public/audio/`) — fade in/out based on intensity
-  - Tracks: `calm.mp3`, `intense.mp3`, `triumph.mp3`
-- [ ] Subtle CSS class swap on board container (`bg-neutral-900` → `bg-red-950` on tension)
-
----
-
-## Phase 6 — Firebase Persistence
-
-**Goal:** Store game history and blunder patterns per user for long-term coaching.
-
-### Setup
-
-- [ ] Create Firebase project, enable Firestore + Auth (Google sign-in)
-- [ ] Add Firebase config to `frontend/.env.local`
-- [ ] Install: `firebase` (frontend SDK)
-
-### Data Model
+### Folder Structure
 
 ```
-users/{uid}/
-  games/{gameId}/
-    created_at: timestamp
-    moves: [{ fen, move, classification, eval }]
-    result: "win" | "loss" | "draw"
-  blunder_patterns/
-    {patternId}: { fen_prefix, count, last_seen }
+frontend/
+  lib/
+    supabase.ts          # createClient + Database types
+    auth.ts              # signUp, signIn, signOut helpers
+    db.ts                # saveGame(), getUserProfile(), updateElo()
+  app/
+    context/
+      AuthContext.tsx    # onAuthStateChange → exposes user, loading, signOut
+    components/
+      AuthModal.tsx      # Registration + Login modal (dark Tailwind)
 ```
 
-### Frontend
+### Supabase SQL Schema
 
-- [ ] `AuthContext.tsx` — Google sign-in, expose `user`
-- [ ] After each move, write to Firestore (non-blocking)
-- [ ] On game end, write final result
+```sql
+-- users table
+CREATE TABLE public.users (
+  id           UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
+  username     TEXT NOT NULL UNIQUE,
+  email        TEXT NOT NULL,
+  current_elo  INTEGER NOT NULL DEFAULT 400,
+  created_at   TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
-### Backend (optional)
+-- games table (moves stored as JSONB — no per-move writes)
+CREATE TABLE public.games (
+  id             UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id        UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  opponent_id    TEXT NOT NULL,
+  opponent_skill INTEGER NOT NULL,
+  result         TEXT NOT NULL CHECK (result IN ('win','loss','draw','resigned')),
+  moves          JSONB NOT NULL DEFAULT '[]',
+  played_at      TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
 
-- [ ] Firebase Admin SDK for server-side pattern analysis (Phase 7+)
+-- RLS
+ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.games ENABLE ROW LEVEL SECURITY;
+
+CREATE POLICY "users_select_own" ON public.users FOR SELECT USING (auth.uid() = id);
+CREATE POLICY "users_insert_own" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
+CREATE POLICY "users_update_own" ON public.users FOR UPDATE USING (auth.uid() = id);
+
+CREATE POLICY "games_select_own" ON public.games FOR SELECT USING (auth.uid() = user_id);
+CREATE POLICY "games_insert_own" ON public.games FOR INSERT WITH CHECK (auth.uid() = user_id);
+```
+
+### npm Command
+
+```bash
+# from frontend/
+npm install @supabase/supabase-js
+```
+
+### Auth Injection Plan
+
+1. **`lib/supabase.ts`** — `createClient<Database>(url, anonKey)` with inline `Database` type for full `from()` type safety.
+
+2. **`lib/auth.ts`** — Three helpers: `signUp(email, password, username)` creates auth user then inserts `public.users` row (username captured here, not from auth.users). `signIn(email, password)`. `signOut()`.
+
+3. **`AuthContext.tsx`** — `getSession()` on mount + `onAuthStateChange` listener. While `loading`, renders a spinner. When `!user`, renders `<AuthModal />` fullscreen — game is fully gated. When `user` exists, renders children.
+
+4. **`GameContext.tsx`** additions (Batch 2):
+   - Add `moveLog: MoveRecord[]` accumulated in state — zero DB writes mid-game.
+   - Backend needs to return `cpl` in `/api/move` response (minor addition).
+   - Add `concludeGame(result)` action — single `supabase.from('games').insert()` + Elo update.
+   - Add `resignGame()` → calls `concludeGame('resigned')`.
+
+5. **`lib/db.ts`** — `saveGame(userId, payload)`: single insert to `games`. `updateElo(userId, newElo)`: single update to `users`. Both called together in `concludeGame`.
+
+### Page-Level Auth Gate
+
+```tsx
+<AuthProvider>          {/* gates everything; renders AuthModal when !user */}
+  <GameProvider>
+    <AtmosphereBackground>
+      <main>…</main>
+    </AtmosphereBackground>
+  </GameProvider>
+</AuthProvider>
+```
+
+### Build Order
+
+```
+Batch 1: lib/supabase.ts → lib/auth.ts → AuthContext.tsx
+Batch 2: AuthModal.tsx
+Batch 3: GameContext moveLog + lib/db.ts + concludeGame() + ChessBoard wiring
+```
 
 ---
 
@@ -213,24 +178,10 @@ users/{uid}/
 
 **Goal:** AI references your historical blunders in coaching messages.
 
-- [ ] Cloud Function or cron job: aggregate blunder patterns per user
-- [ ] On game start, fetch top 3 recurring patterns
-- [ ] Inject into system prompt: `"This user repeatedly blunders in the Sicilian at move 15"`
-- [ ] Claude can then proactively warn before similar positions arise
-
----
-
-## File Targets by Phase
-
-| Phase | New Files | Modified Files |
-|-------|-----------|----------------|
-| 1 | `backend/services/stockfish.py`, `GameContext.tsx` | `main.py`, `ChessBoard.tsx`, `CoachPanel.tsx` |
-| 2 | `backend/services/coach.py` | `main.py`, `CoachPanel.tsx` |
-| 3 | `backend/services/tts.py` | `main.py`, `CoachPanel.tsx` |
-| 4 | `backend/personas/personas.py` | `coach.py`, `main.py`, `CoachPanel.tsx`, `GameContext.tsx` |
-| 5 | `hooks/useIntensity.ts`, `public/audio/*` | `page.tsx`, `ChessBoard.tsx` |
-| 6 | `lib/firebase.ts`, `AuthContext.tsx` | `page.tsx`, `GameContext.tsx` |
-| 7 | `backend/services/memory.py` | `coach.py`, Firebase schema |
+- Aggregate blunder patterns per user from Firestore game history
+- On game start, fetch top 3 recurring CPL-spike positions
+- Inject into system prompt: `"This user repeatedly blunders in the Sicilian at move 15"`
+- Coach proactively warns before similar positions arise
 
 ---
 
@@ -238,8 +189,8 @@ users/{uid}/
 
 ### `backend/.env`
 ```
-STOCKFISH_PATH=./stockfish/stockfish-windows-x86-64.exe
-ANTHROPIC_API_KEY=
+STOCKFISH_PATH=./stockfish/stockfish-windows-x86-64-avx2.exe
+GROQ_API_KEY=
 ELEVENLABS_API_KEY=
 ELEVENLABS_VOICE_ID=
 ```
@@ -247,17 +198,6 @@ ELEVENLABS_VOICE_ID=
 ### `frontend/.env.local`
 ```
 NEXT_PUBLIC_BACKEND_URL=http://localhost:8000
-NEXT_PUBLIC_FIREBASE_API_KEY=
-NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN=
-NEXT_PUBLIC_FIREBASE_PROJECT_ID=
+NEXT_PUBLIC_SUPABASE_URL=
+NEXT_PUBLIC_SUPABASE_ANON_KEY=
 ```
-
----
-
-## Build Order (Recommended)
-
-```
-Phase 1 → Phase 2 → Phase 4 → Phase 3 → Phase 5 → Phase 6 → Phase 7
-```
-
-Rationale: Get the full move→analysis→coaching loop working first (1+2), add persona flavor (4), then layer on audio (3), atmosphere (5), and persistence (6+7). Each phase is independently shippable.

@@ -3,4 +3,5 @@ uvicorn==0.44.0
 python-chess==1.999
 python-dotenv==1.1.0
 langchain==0.3.25
-langchain-google-genai==2.1.4
+langchain-groq==0.3.2
+elevenlabs==1.54.0
