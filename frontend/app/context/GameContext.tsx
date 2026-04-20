@@ -15,12 +15,14 @@ interface ApiMoveResponse {
   evaluation: Evaluation;
   is_blunder: boolean;
   classification: MoveClassification;
+  coach_message: string;
 }
 
 interface GameState {
   evaluation: Evaluation | null;
   lastClassification: MoveClassification | null;
   bestMove: string | null;
+  coachMessage: string | null;
   isAnalyzing: boolean;
 }
 
@@ -37,6 +39,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     evaluation: null,
     lastClassification: null,
     bestMove: null,
+    coachMessage: null,
     isAnalyzing: false,
   });
 
@@ -54,6 +57,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         evaluation: data.evaluation,
         lastClassification: data.classification,
         bestMove: data.best_move,
+        coachMessage: data.coach_message,
         isAnalyzing: false,
       });
     } catch (err) {

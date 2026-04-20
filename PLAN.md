@@ -89,14 +89,14 @@ Firebase (persist game + blunder log)
 
 ### Backend
 
-- [ ] Install: `langchain`, `langchain-anthropic`, `anthropic`
+- [ ] Install: `langchain`, `langchain-google-genai`
 - [ ] Create `services/coach.py`
   - `get_coaching_message(fen, move, evaluation, classification, persona, history) -> str`
-  - Uses LangChain `ChatAnthropic` with `claude-3-5-sonnet-20241022`
-  - **Token optimization:** system prompt is cached via Anthropic prompt caching (`cache_control: ephemeral`). Only the delta (last move + eval) is sent as user turn — never the full PGN.
+  - Uses LangChain `ChatGoogleGenerativeAI` with `gemini-1.5-flash` (free tier)
+  - Only the delta (last move + eval) is sent as the user turn — never the full PGN.
   - Persona is injected into the system prompt template (see Phase 4)
 - [ ] Add `coach_message: str` to `/api/move` response
-- [ ] Store `ANTHROPIC_API_KEY` in `backend/.env`
+- [ ] Store `GOOGLE_API_KEY` in `backend/.env`
 
 ### Frontend
 

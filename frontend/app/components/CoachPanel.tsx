@@ -31,7 +31,7 @@ function EvalDisplay({ evaluation }: { evaluation: Evaluation }) {
 
 export default function CoachPanel() {
   const [status, setStatus] = useState<BackendStatus>('checking');
-  const { evaluation, lastClassification, bestMove, isAnalyzing } = useGame();
+  const { evaluation, lastClassification, bestMove, coachMessage, isAnalyzing } = useGame();
 
   useEffect(() => {
     const check = async () => {
@@ -67,6 +67,12 @@ export default function CoachPanel() {
         </div>
       ) : evaluation ? (
         <div className="flex flex-col gap-3">
+          {coachMessage && (
+            <div className="rounded-md bg-zinc-800 px-4 py-3">
+              <p className="text-xs text-zinc-400 uppercase tracking-wide mb-2">Coach</p>
+              <p className="text-sm text-zinc-100 leading-relaxed">{coachMessage}</p>
+            </div>
+          )}
           <div className="flex items-center justify-between rounded-md bg-zinc-800 px-4 py-3">
             <span className="text-xs text-zinc-400 uppercase tracking-wide">Evaluation</span>
             <EvalDisplay evaluation={evaluation} />
