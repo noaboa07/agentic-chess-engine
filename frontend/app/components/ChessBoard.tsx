@@ -5,16 +5,46 @@ import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import type { Square } from 'chess.js';
 import { useGame, type GameResult } from '../context/GameContext';
+import ChessClock from './ChessClock';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
 const BOARD_WIDTH = 560;
 const SQUARE_SIZE = BOARD_WIDTH / 8;
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
 const ARROW_COLOR = 'rgba(255, 170, 0, 0.75)';
-const ARROW_LINE_WIDTH = SQUARE_SIZE * 0.10;  // ~7px
-const ARROW_HEAD_LEN  = SQUARE_SIZE * 0.28;  // ~20px
+const ARROW_LINE_WIDTH = SQUARE_SIZE * 0.18;
+const ARROW_HEAD_LEN  = SQUARE_SIZE * 0.44;
 
 type ArrowTuple = [Square, Square];
+
+// ── Sound effects ─────────────────────────────────────────────────────────────
+type ChessSound = 'move-self' | 'move-opponent' | 'capture' | 'castle' | 'promote' | 'check';
+const sfxCache = new Map<ChessSound, HTMLAudioElement>();
+
+function playChessSound(name: ChessSound, muted: boolean): void {
+  if (muted || typeof window === 'undefined') return;
+  let audio = sfxCache.get(name);
+  if (!audio) {
+    audio = new Audio(`/audio/sfx/${name}.mp3`);
+    sfxCache.set(name, audio);
+  }
+  audio.currentTime = 0;
+  audio.play().catch(() => {});
+}
+
+function getMoveSound(
+  flags: string,
+  captured: string | undefined,
+  gameAfter: Chess,
+  isPlayer: boolean,
+): ChessSound {
+  if (flags.includes('k') || flags.includes('q')) return 'castle';
+  if (flags.includes('p')) return 'promote';
+  if (captured || flags.includes('e')) return 'capture';
+  if (gameAfter.isCheck()) return 'check';
+  return isPlayer ? 'move-self' : 'move-opponent';
+}
+// ─────────────────────────────────────────────────────────────────────────────
 
 function uciToMove(uci: string) {
   return {
@@ -132,6 +162,7 @@ export default function ChessBoard() {
     submitMove, concludeGame, isAnalyzing, intensity,
     boardResetToken, playerColor, flipPlayerColor,
     moveCount, activePersona, takeBack, takeBackToken, teachMode,
+    currentOpening, startClock, timeControl, globalMuted,
   } = useGame();
 
   const detectResult = useCallback((g: Chess): GameResult => {
@@ -193,6 +224,8 @@ export default function ChessBoard() {
           setGame(after);
           setFen(after.fen());
         }
+        // Engine opened — start player's clock
+        if (timeControl && timeControl.initialMs > 0) startClock(playerColor);
         setBoardLocked(false);
       })
       .catch(() => setBoardLocked(false));
@@ -207,11 +240,17 @@ export default function ChessBoard() {
       const move = gameCopy.move({ from: sourceSquare, to: targetSquare, promotion: 'q' });
       if (move === null) return false;
 
+      playChessSound(getMoveSound(move.flags, move.captured, gameCopy, true), globalMuted);
+
       preMovePositionsRef.current.push(prevFen);
       setArrows([]);
       setGame(gameCopy);
       setFen(gameCopy.fen());
       setBoardLocked(true);
+
+      // Player moved — start opponent's clock immediately
+      const opponentColor = playerColor === 'white' ? 'black' : 'white';
+      if (timeControl && timeControl.initialMs > 0) startClock(opponentColor);
 
       const moveUci = `${move.from}${move.to}${move.promotion ?? ''}`;
       submitMove(prevFen, moveUci, move.san).then(result => {
@@ -222,10 +261,13 @@ export default function ChessBoard() {
             const afterEngine = new Chess(gameCopy.fen());
             const engineMoveResult = afterEngine.move(uciToMove(result.engineMove!));
             if (engineMoveResult) {
+              playChessSound(getMoveSound(engineMoveResult.flags, engineMoveResult.captured, afterEngine, false), globalMuted);
               setGame(afterEngine);
               setFen(afterEngine.fen());
               if (afterEngine.isGameOver()) { void concludeGame(detectResult(afterEngine)); return; }
             }
+            // Engine move applied — start player's clock
+            if (timeControl && timeControl.initialMs > 0) startClock(playerColor);
             setBoardLocked(false);
           }, 400);
         } else {
@@ -234,7 +276,7 @@ export default function ChessBoard() {
       });
       return true;
     },
-    [game, submitMove, concludeGame, detectResult, boardLocked, isAnalyzing],
+    [game, submitMove, concludeGame, detectResult, boardLocked, isAnalyzing, playerColor, timeControl, startClock, globalMuted],
   );
 
   // Arrow drawing — right-click drag, legal moves only
@@ -291,30 +333,38 @@ export default function ChessBoard() {
         </button>
       )}
 
-      <div
-        ref={boardContainerRef}
-        className={`relative select-none transition-opacity duration-200 ${isLocked ? 'opacity-70' : 'opacity-100'}`}
-        onMouseDown={handleMouseDown}
-        onMouseUp={handleMouseUp}
-        onClick={handleClick}
-        onContextMenu={e => e.preventDefault()}
-      >
-        <Chessboard
-          position={fen}
-          onPieceDrop={onPieceDrop}
-          boardOrientation={playerColor}
-          boardWidth={BOARD_WIDTH}
-          isDraggablePiece={({ piece }) => !isLocked && piece.startsWith(playerPiecePrefix)}
-          customBoardStyle={{ borderRadius: '4px', boxShadow: glowStyle[intensity], transition: 'box-shadow 1s ease' }}
-        />
-        <canvas
-          ref={canvasRef}
-          width={BOARD_WIDTH}
-          height={BOARD_WIDTH}
-          className="absolute inset-0 pointer-events-none"
-        />
-      </div>
+      <ChessClock>
+        <div
+          ref={boardContainerRef}
+          className={`relative select-none transition-opacity duration-200 ${isLocked ? 'opacity-70' : 'opacity-100'}`}
+          onMouseDown={handleMouseDown}
+          onMouseUp={handleMouseUp}
+          onClick={handleClick}
+          onContextMenu={e => e.preventDefault()}
+        >
+          <Chessboard
+            position={fen}
+            onPieceDrop={onPieceDrop}
+            boardOrientation={playerColor}
+            boardWidth={BOARD_WIDTH}
+            isDraggablePiece={({ piece }) => !isLocked && piece.startsWith(playerPiecePrefix)}
+            areArrowsAllowed={false}
+            customBoardStyle={{ borderRadius: '4px', boxShadow: glowStyle[intensity], transition: 'box-shadow 1s ease' }}
+          />
+          <canvas
+            ref={canvasRef}
+            width={BOARD_WIDTH}
+            height={BOARD_WIDTH}
+            className="absolute inset-0 pointer-events-none"
+          />
+        </div>
+      </ChessClock>
 
+      {currentOpening && (
+        <p className="mt-2 text-center text-[10px] text-zinc-400 bg-zinc-800/60 rounded px-2 py-1 truncate">
+          {currentOpening}
+        </p>
+      )}
       {isLocked && (
         <p className="mt-2 text-center text-xs text-zinc-400 animate-pulse">
           {isAnalyzing ? 'Analyzing…' : 'Opponent is thinking…'}

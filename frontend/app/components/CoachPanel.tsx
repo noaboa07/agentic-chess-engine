@@ -1,7 +1,9 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useGame, type Evaluation, type MoveClassification, type PersonaId, PERSONAS } from '../context/GameContext';
+import { useGame, type Evaluation, type MoveClassification, type PersonaId, PERSONAS, TIME_CONTROLS } from '../context/GameContext';
+import { useAuth } from '../context/AuthContext';
+import LeaderboardModal from './LeaderboardModal';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
 
@@ -42,14 +44,26 @@ function SoundIcon() {
   );
 }
 
+function SignOutIcon() {
+  return (
+    <svg xmlns="http://www.w3.org/2000/svg" className="h-4 w-4" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+      <path d="M9 21H5a2 2 0 01-2-2V5a2 2 0 012-2h4" />
+      <polyline points="16 17 21 12 16 7" />
+      <line x1="21" y1="12" x2="9" y2="12" />
+    </svg>
+  );
+}
+
 export default function CoachPanel() {
   const [status, setStatus] = useState<BackendStatus>('checking');
+  const [showLeaderboard, setShowLeaderboard] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
+  const { signOut } = useAuth();
   const {
     evaluation, lastClassification, bestMove, coachMessage,
     persona, setPersona, isAnalyzing, teachMode, setTeachMode,
     lastMoveContext, requestHint, globalMuted, setGlobalMuted,
-    moveCount, resignGame,
+    moveCount, resignGame, timeControl, setTimeControl,
   } = useGame();
 
   // TTS playback — gated by teach mode and global mute
@@ -136,6 +150,13 @@ export default function CoachPanel() {
           >
             {globalMuted ? <MuteIcon /> : <SoundIcon />}
           </button>
+          <button
+            onClick={() => void signOut()}
+            className="text-zinc-500 hover:text-zinc-300 transition-colors"
+            title="Sign out"
+          >
+            <SignOutIcon />
+          </button>
           {/* Status dot */}
           <span className="flex items-center gap-2 text-xs text-zinc-400">
             <span className={`h-2 w-2 rounded-full ${statusColor[status]}`} />
@@ -158,6 +179,34 @@ export default function CoachPanel() {
         >
           <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${teachMode ? 'translate-x-5' : 'translate-x-1'}`} />
         </button>
+      </div>
+
+      {/* Time control selector */}
+      <div className="mb-4">
+        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">Time Control</p>
+        <div className="flex gap-1">
+          {TIME_CONTROLS.map(tc => {
+            const isActive = timeControl?.label === tc.label || (tc.label === 'Untimed' && !timeControl);
+            const disabled = moveCount > 0;
+            return (
+              <button
+                key={tc.label}
+                onClick={() => setTimeControl(tc.label === 'Untimed' ? null : tc)}
+                disabled={disabled}
+                title={disabled ? 'Cannot change time control mid-game' : tc.label}
+                className={`flex-1 rounded py-1.5 text-[10px] font-semibold transition-colors ${
+                  isActive
+                    ? 'bg-indigo-600 text-white'
+                    : disabled
+                    ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
+                }`}
+              >
+                {tc.label}
+              </button>
+            );
+          })}
+        </div>
       </div>
 
       {/* Persona selector */}
@@ -225,6 +274,17 @@ export default function CoachPanel() {
           </p>
         </div>
       )}
+      {/* Footer */}
+      <div className="mt-auto pt-4">
+        <button
+          onClick={() => setShowLeaderboard(true)}
+          className="w-full rounded-md bg-zinc-800 px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+        >
+          Global Leaderboard
+        </button>
+      </div>
+
+      {showLeaderboard && <LeaderboardModal onClose={() => setShowLeaderboard(false)} />}
     </div>
   );
 }

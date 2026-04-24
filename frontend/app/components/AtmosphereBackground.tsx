@@ -1,19 +1,17 @@
 'use client';
 
 import { useEffect, useRef, type ReactNode } from 'react';
-import { useGame, type IntensityLevel } from '../context/GameContext';
-
-const TRACKS: Record<IntensityLevel, string> = {
-  calm:     '/audio/calm.mp3',
-  dramatic: '/audio/dramatic.mp3',
-  hype:     '/audio/hype.mp3',
-};
+import { useGame, type IntensityLevel, type PersonaId } from '../context/GameContext';
 
 const BG_CLASSES: Record<IntensityLevel, string> = {
   calm:     'bg-zinc-950',
   dramatic: 'bg-red-950',
   hype:     'bg-indigo-950',
 };
+
+function getTrack(personaId: PersonaId, intensity: IntensityLevel): string {
+  return `/audio/${personaId}/${intensity}.mp3`;
+}
 
 function fadeVolume(audio: HTMLAudioElement, target: number, ms = 1500) {
   const start = audio.volume;
@@ -25,68 +23,98 @@ function fadeVolume(audio: HTMLAudioElement, target: number, ms = 1500) {
   }, 50);
 }
 
+type TrackKey = `${PersonaId}:${IntensityLevel}`;
+
 export default function AtmosphereBackground({ children }: { children: ReactNode }) {
-  const { intensity, globalMuted, moveCount } = useGame();
-  const audioRefs = useRef<Partial<Record<IntensityLevel, HTMLAudioElement>>>({});
-  const prevIntensity = useRef<IntensityLevel>('calm');
+  const { intensity, globalMuted, moveCount, activePersona } = useGame();
+
+  // Flat map keyed by "personaId:intensity" so each persona keeps its own Audio objects
+  const audioMap = useRef<Map<TrackKey, HTMLAudioElement>>(new Map());
+  const activeKey = useRef<TrackKey | null>(null);
   const started = useRef(false);
-  // Keep a ref so crossfade/mute effects can read current muted state without stale closure
   const globalMutedRef = useRef(globalMuted);
   useEffect(() => { globalMutedRef.current = globalMuted; }, [globalMuted]);
 
-  // Init Audio objects once on mount
+  function getOrCreate(personaId: PersonaId, level: IntensityLevel): HTMLAudioElement {
+    const key: TrackKey = `${personaId}:${level}`;
+    if (!audioMap.current.has(key)) {
+      const audio = new Audio(getTrack(personaId, level));
+      audio.loop = true;
+      audio.volume = 0;
+      audioMap.current.set(key, audio);
+    }
+    return audioMap.current.get(key)!;
+  }
+
+  // Cleanup on unmount
   useEffect(() => {
-    if (typeof window === 'undefined') return;
-    (Object.keys(TRACKS) as IntensityLevel[]).forEach(level => {
-      if (!audioRefs.current[level]) {
-        const audio = new Audio(TRACKS[level]);
-        audio.loop = true;
-        audio.volume = 0;
-        audioRefs.current[level] = audio;
-      }
-    });
     return () => {
-      Object.values(audioRefs.current).forEach(a => a?.pause());
+      audioMap.current.forEach(a => a.pause());
+      audioMap.current.clear();
     };
   }, []);
 
-  // Start music after first user move — safe for browser autoplay policy
+  // Start music after first user move
   useEffect(() => {
     if (moveCount === 0 || started.current) return;
     started.current = true;
-    prevIntensity.current = intensity;
+    const key: TrackKey = `${activePersona.id}:${intensity}`;
+    activeKey.current = key;
     if (globalMutedRef.current) return;
-    const audio = audioRefs.current[intensity];
-    if (audio) {
-      void audio.play().catch(() => {});
-      fadeVolume(audio, 0.25, 1500);
-    }
-  // intensity intentionally included so the correct track starts if intensity
-  // has already changed before the first move is made
+    const audio = getOrCreate(activePersona.id, intensity);
+    void audio.play().catch(() => {});
+    fadeVolume(audio, 0.25, 1500);
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [moveCount]);
 
-  // Crossfade when intensity changes (only after music has started)
+  // Crossfade on intensity change (within same persona)
   useEffect(() => {
     if (!started.current) return;
-    const prev = prevIntensity.current;
-    if (prev === intensity) return;
-    prevIntensity.current = intensity;
+    const newKey: TrackKey = `${activePersona.id}:${intensity}`;
+    if (activeKey.current === newKey) return;
 
-    const outAudio = audioRefs.current[prev];
-    const inAudio  = audioRefs.current[intensity];
-    if (outAudio) fadeVolume(outAudio, 0, 1500);
-    if (inAudio && !globalMutedRef.current) {
+    const prevKey = activeKey.current;
+    activeKey.current = newKey;
+
+    if (prevKey) {
+      const outAudio = audioMap.current.get(prevKey);
+      if (outAudio) fadeVolume(outAudio, 0, 1500);
+    }
+    if (!globalMutedRef.current) {
+      const inAudio = getOrCreate(activePersona.id, intensity);
       inAudio.currentTime = 0;
       void inAudio.play().catch(() => {});
       fadeVolume(inAudio, 0.25, 1500);
     }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [intensity]);
 
-  // Global mute / unmute — fade current track in or out
+  // Crossfade on persona change — reset intensity to calm for the new persona
   useEffect(() => {
     if (!started.current) return;
-    const current = audioRefs.current[prevIntensity.current];
+    const newKey: TrackKey = `${activePersona.id}:calm`;
+
+    const prevKey = activeKey.current;
+    if (prevKey === newKey) return;
+    activeKey.current = newKey;
+
+    if (prevKey) {
+      const outAudio = audioMap.current.get(prevKey);
+      if (outAudio) fadeVolume(outAudio, 0, 1500);
+    }
+    if (!globalMutedRef.current) {
+      const inAudio = getOrCreate(activePersona.id, 'calm');
+      inAudio.currentTime = 0;
+      void inAudio.play().catch(() => {});
+      fadeVolume(inAudio, 0.25, 1500);
+    }
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [activePersona.id]);
+
+  // Global mute / unmute
+  useEffect(() => {
+    if (!started.current || !activeKey.current) return;
+    const current = audioMap.current.get(activeKey.current);
     if (!current) return;
     if (globalMuted) {
       fadeVolume(current, 0, 500);

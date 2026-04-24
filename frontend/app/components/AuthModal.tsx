@@ -8,6 +8,7 @@ type Mode = 'login' | 'register';
 export default function AuthModal() {
   const [mode, setMode] = useState<Mode>('login');
   const [username, setUsername] = useState('');
+  const [emailOrUsername, setEmailOrUsername] = useState('');
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -31,7 +32,7 @@ export default function AuthModal() {
         await signUp(email.trim(), password, username.trim());
         setInfo('Account created! Check your email to confirm before signing in.');
       } else {
-        await signIn(email.trim(), password);
+        await signIn(emailOrUsername.trim(), password);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'Something went wrong. Please try again.');
@@ -93,20 +94,37 @@ export default function AuthModal() {
             </div>
           )}
 
-          <div className="flex flex-col gap-1">
-            <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
-              Email
-            </label>
-            <input
-              type="email"
-              value={email}
-              onChange={e => setEmail(e.target.value)}
-              placeholder="you@example.com"
-              required
-              autoComplete="email"
-              className="rounded-lg border border-white/10 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
-            />
-          </div>
+          {mode === 'register' ? (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Email
+              </label>
+              <input
+                type="email"
+                value={email}
+                onChange={e => setEmail(e.target.value)}
+                placeholder="you@example.com"
+                required
+                autoComplete="email"
+                className="rounded-lg border border-white/10 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          ) : (
+            <div className="flex flex-col gap-1">
+              <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">
+                Email or Username
+              </label>
+              <input
+                type="text"
+                value={emailOrUsername}
+                onChange={e => setEmailOrUsername(e.target.value)}
+                placeholder="you@example.com or your_username"
+                required
+                autoComplete="username"
+                className="rounded-lg border border-white/10 bg-slate-800 px-4 py-2.5 text-sm text-white placeholder-slate-500 outline-none transition focus:border-indigo-500 focus:ring-1 focus:ring-indigo-500"
+              />
+            </div>
+          )}
 
           <div className="flex flex-col gap-1">
             <label className="text-xs font-semibold uppercase tracking-wider text-slate-400">

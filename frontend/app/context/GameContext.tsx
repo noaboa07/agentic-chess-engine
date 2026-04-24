@@ -2,7 +2,8 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { saveGame, getUserElo, updateElo, getUserBlunderPatterns } from '../../lib/db';
+import { saveGame, getModeElo, getModeGameCount, updateModeElo, getUserBlunderPatterns, type EloMode } from '../../lib/db';
+import { detectOpening } from '../../lib/openings';
 
 export type MoveClassification = 'brilliant' | 'great' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
 export type GameResult = 'win' | 'loss' | 'draw' | 'resigned';
@@ -85,6 +86,20 @@ interface LastMoveContext {
 
 export type PlayerColor = 'white' | 'black';
 
+export interface TimeControl {
+  label: string;
+  initialMs: number;
+  incrementMs: number;
+}
+
+export const TIME_CONTROLS: TimeControl[] = [
+  { label: 'Untimed',   initialMs: 0,         incrementMs: 0     },
+  { label: 'Bullet',    initialMs: 120_000,   incrementMs: 1_000 },
+  { label: 'Blitz',     initialMs: 300_000,   incrementMs: 3_000 },
+  { label: 'Rapid',     initialMs: 600_000,   incrementMs: 5_000 },
+  { label: 'Classical', initialMs: 1_800_000, incrementMs: 0     },
+];
+
 interface GameState {
   evaluation: Evaluation | null;
   lastClassification: MoveClassification | null;
@@ -102,12 +117,17 @@ interface GameState {
   playerColor: PlayerColor;
   blunderContext: string | null;
   takeBackToken: number;
+  currentOpening: string | null;
+  timeControl: TimeControl | null;
+  clockActiveColor: PlayerColor | null;
+  userModeElo: number | null;
 }
 
 const randomColor = (): PlayerColor => (Math.random() < 0.5 ? 'white' : 'black');
 
 // Fields reset at the start of each new game (persona switch or concludeGame)
-const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' | 'boardResetToken' | 'playerColor' | 'blunderContext' | 'takeBackToken'> = {
+// timeControl persists — user keeps their selected format between games
+const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' | 'boardResetToken' | 'playerColor' | 'blunderContext' | 'takeBackToken' | 'timeControl' | 'userModeElo'> = {
   evaluation: null,
   lastClassification: null,
   bestMove: null,
@@ -117,6 +137,8 @@ const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' 
   isAnalyzing: false,
   moveCount: 0,
   lastMoveContext: null,
+  currentOpening: null,
+  clockActiveColor: null,
 };
 
 export interface SubmitMoveResult {
@@ -135,6 +157,9 @@ interface GameContextValue extends GameState {
   setGlobalMuted: (v: boolean) => void;
   flipPlayerColor: () => void;
   takeBack: () => void;
+  setTimeControl: (tc: TimeControl | null) => void;
+  startClock: (color: PlayerColor) => void;
+  pauseClock: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -153,6 +178,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
     playerColor: randomColor(),
     blunderContext: null,
     takeBackToken: 0,
+    currentOpening: null,
+    timeControl: null,
+    userModeElo: null,
   });
 
   const setPersona = useCallback((id: PersonaId) => {
@@ -197,6 +225,15 @@ export function GameProvider({ children }: { children: ReactNode }) {
       .then(patterns => setState(prev => ({ ...prev, blunderContext: patterns })))
       .catch(() => {});
   }, [user, state.boardResetToken]);
+
+  // Fetch user's mode-specific Elo whenever mode or user changes
+  useEffect(() => {
+    if (!user) return;
+    const mode = (state.timeControl?.label ?? 'Untimed') as EloMode;
+    getModeElo(user.id, mode)
+      .then(elo => setState(prev => ({ ...prev, userModeElo: elo })))
+      .catch(() => {});
+  }, [user, state.timeControl, state.boardResetToken]);
 
   const setTeachMode = useCallback((v: boolean) => {
     setState(prev => ({ ...prev, teachMode: v }));
@@ -247,6 +284,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         moveHistory: [...prev.moveHistory, data.classification].slice(-5),
         moveLog: [...prev.moveLog, record],
         isAnalyzing: false,
+        currentOpening: detectOpening(data.fen_after) ?? prev.currentOpening,
       }));
       return { engineMove: data.engine_move || null };
     } catch (err) {
@@ -288,17 +326,32 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const concludeGame = useCallback(async (result: GameResult): Promise<void> => {
     if (user && state.moveLog.length > 0) {
       const persona = PERSONAS.find(p => p.id === state.persona)!;
+      const mode = (state.timeControl?.label ?? 'Untimed') as EloMode;
       try {
         await saveGame(user.id, {
           opponent_id: state.persona,
           opponent_skill: persona.skillLevel,
           result,
           moves: state.moveLog,
+          time_control: state.timeControl?.label ?? null,
         });
-        const currentElo = await getUserElo(user.id);
-        if (currentElo !== null) {
-          const delta = result === 'win' ? 15 : result === 'loss' || result === 'resigned' ? -15 : 0;
-          await updateElo(user.id, Math.max(100, currentElo + delta));
+        const [playerElo, gamesPlayed] = await Promise.all([
+          getModeElo(user.id, mode),
+          getModeGameCount(user.id, mode),
+        ]);
+        const eloRes = await fetch(`${BACKEND_URL}/api/elo/calculate`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            player_elo: playerElo,
+            opponent_elo: persona.elo,
+            result,
+            games_played: gamesPlayed,
+          }),
+        });
+        if (eloRes.ok) {
+          const { new_elo } = await eloRes.json() as { new_elo: number };
+          await updateModeElo(user.id, mode, new_elo, gamesPlayed + 1);
         }
       } catch (err) {
         console.error('Failed to save game:', err);
@@ -310,11 +363,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
       boardResetToken: prev.boardResetToken + 1,
       playerColor: randomColor(),
     }));
-  }, [user, state.persona, state.moveLog]);
+  }, [user, state.persona, state.moveLog, state.timeControl]);
 
   const resignGame = useCallback(async (): Promise<void> => {
     await concludeGame('resigned');
   }, [concludeGame]);
+
+  const setTimeControl = useCallback((tc: TimeControl | null) => {
+    setState(prev => ({ ...prev, timeControl: tc }));
+  }, []);
+
+  const startClock = useCallback((color: PlayerColor) => {
+    setState(prev => ({ ...prev, clockActiveColor: color }));
+  }, []);
+
+  const pauseClock = useCallback(() => {
+    setState(prev => ({ ...prev, clockActiveColor: null }));
+  }, []);
 
   const intensity = computeIntensity(state.moveHistory);
   const activePersona = PERSONAS.find(p => p.id === state.persona) ?? PERSONAS[0];
@@ -333,6 +398,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setGlobalMuted,
       flipPlayerColor,
       takeBack,
+      setTimeControl,
+      startClock,
+      pauseClock,
     }}>
       {children}
     </GameContext.Provider>

@@ -22,11 +22,19 @@ export async function signUp(
   return data.user;
 }
 
-export async function signIn(email: string, password: string): Promise<User> {
-  const { data, error } = await supabase.auth.signInWithPassword({
-    email,
-    password,
-  });
+export async function signIn(emailOrUsername: string, password: string): Promise<User> {
+  let email = emailOrUsername.trim();
+
+  if (!email.includes('@')) {
+    const { data: emailData, error: rpcError } = await supabase.rpc('get_email_by_username', {
+      p_username: email,
+    });
+    if (rpcError) throw rpcError;
+    if (!emailData) throw new Error('No account found with that username.');
+    email = emailData as string;
+  }
+
+  const { data, error } = await supabase.auth.signInWithPassword({ email, password });
   if (error) throw error;
   if (!data.user) throw new Error('Sign in succeeded but no user was returned.');
   return data.user;

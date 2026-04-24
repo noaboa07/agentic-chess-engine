@@ -12,6 +12,15 @@ export interface Database {
           email: string;
           current_elo: number;
           created_at: string;
+          elo_bullet: number;
+          elo_blitz: number;
+          elo_rapid: number;
+          elo_classical: number;
+          games_unlimited: number;
+          games_bullet: number;
+          games_blitz: number;
+          games_rapid: number;
+          games_classical: number;
         };
         Insert: {
           id: string;
@@ -22,6 +31,15 @@ export interface Database {
         Update: {
           username?: string;
           current_elo?: number;
+          elo_bullet?: number;
+          elo_blitz?: number;
+          elo_rapid?: number;
+          elo_classical?: number;
+          games_unlimited?: number;
+          games_bullet?: number;
+          games_blitz?: number;
+          games_rapid?: number;
+          games_classical?: number;
         };
       };
       games: {
@@ -33,6 +51,7 @@ export interface Database {
           result: 'win' | 'loss' | 'draw' | 'resigned';
           moves: Json;
           played_at: string;
+          time_control: string | null;
         };
         Insert: {
           user_id: string;
@@ -40,6 +59,7 @@ export interface Database {
           opponent_skill: number;
           result: 'win' | 'loss' | 'draw' | 'resigned';
           moves: Json;
+          time_control?: string | null;
         };
         Update: never;
       };

@@ -1,11 +1,30 @@
 import { supabase } from './supabase';
 import type { MoveRecord, GameResult } from '../app/context/GameContext';
 
+export type EloMode = 'Untimed' | 'Bullet' | 'Blitz' | 'Rapid' | 'Classical';
+
+const ELO_COL: Record<EloMode, string> = {
+  Untimed:   'current_elo',
+  Bullet:    'elo_bullet',
+  Blitz:     'elo_blitz',
+  Rapid:     'elo_rapid',
+  Classical: 'elo_classical',
+};
+
+const GAMES_COL: Record<EloMode, string> = {
+  Untimed:   'games_unlimited',
+  Bullet:    'games_bullet',
+  Blitz:     'games_blitz',
+  Rapid:     'games_rapid',
+  Classical: 'games_classical',
+};
+
 interface SaveGamePayload {
   opponent_id: string;
   opponent_skill: number;
   result: GameResult;
   moves: MoveRecord[];
+  time_control?: string | null;
 }
 
 export async function saveGame(userId: string, payload: SaveGamePayload): Promise<void> {
@@ -15,18 +34,36 @@ export async function saveGame(userId: string, payload: SaveGamePayload): Promis
     opponent_skill: payload.opponent_skill,
     result: payload.result,
     moves: payload.moves,
+    time_control: payload.time_control ?? null,
   });
   if (error) throw error;
 }
 
-export async function getUserElo(userId: string): Promise<number | null> {
-  const { data, error } = await supabase
-    .from('users')
-    .select('current_elo')
-    .eq('id', userId)
-    .single();
+export async function getModeElo(userId: string, mode: EloMode): Promise<number> {
+  const col = ELO_COL[mode];
+  const { data, error } = await supabase.from('users').select(col).eq('id', userId).single();
   if (error) throw error;
-  return data?.current_elo ?? null;
+  return (data as unknown as Record<string, number> | null)?.[col] ?? 400;
+}
+
+export async function getModeGameCount(userId: string, mode: EloMode): Promise<number> {
+  const col = GAMES_COL[mode];
+  const { data, error } = await supabase.from('users').select(col).eq('id', userId).single();
+  if (error) throw error;
+  return (data as unknown as Record<string, number> | null)?.[col] ?? 0;
+}
+
+export async function updateModeElo(
+  userId: string,
+  mode: EloMode,
+  newElo: number,
+  newGamesCount: number,
+): Promise<void> {
+  const { error } = await supabase.from('users').update({
+    [ELO_COL[mode]]:   newElo,
+    [GAMES_COL[mode]]: newGamesCount,
+  }).eq('id', userId);
+  if (error) throw error;
 }
 
 const PIECE_NAMES: Record<string, string> = {
@@ -75,10 +112,23 @@ export async function getUserBlunderPatterns(userId: string): Promise<string | n
   return parts.length > 0 ? parts.join('; ') : null;
 }
 
-export async function updateElo(userId: string, newElo: number): Promise<void> {
-  const { error } = await supabase
+export interface LeaderboardEntry {
+  username: string;
+  current_elo: number;
+  rank: number;
+}
+
+export async function getLeaderboard(mode: EloMode = 'Untimed', limit = 50): Promise<LeaderboardEntry[]> {
+  const col = ELO_COL[mode];
+  const { data, error } = await supabase
     .from('users')
-    .update({ current_elo: newElo })
-    .eq('id', userId);
+    .select(`username, ${col}`)
+    .order(col, { ascending: false })
+    .limit(limit);
   if (error) throw error;
+  return (data ?? []).map((row, i) => ({
+    username: (row as unknown as Record<string, unknown>).username as string,
+    current_elo: ((row as unknown as Record<string, unknown>)[col] as number) ?? 400,
+    rank: i + 1,
+  }));
 }

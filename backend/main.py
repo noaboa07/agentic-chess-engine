@@ -45,6 +45,19 @@ class TtsRequest(BaseModel):
     text: str
 
 
+class EloCalculateRequest(BaseModel):
+    player_elo: int
+    opponent_elo: int
+    result: str  # "win" | "loss" | "draw" | "resigned"
+    games_played: int
+
+
+class EloCalculateResponse(BaseModel):
+    new_elo: int
+    delta: int
+    k_factor: int
+
+
 @app.get("/health")
 async def health() -> dict[str, str]:
     return {"status": "ok", "service": "agentic-chess-engine"}
@@ -113,6 +126,23 @@ def engine_first_move(req: EngineFirstMoveRequest) -> dict:
         return {"engine_move": move}
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/elo/calculate", response_model=EloCalculateResponse)
+def calculate_elo(req: EloCalculateRequest) -> EloCalculateResponse:
+    if req.games_played < 20:
+        k = 40
+    elif req.player_elo >= 2400:
+        k = 10
+    else:
+        k = 20
+
+    expected = 1.0 / (1.0 + 10.0 ** ((req.opponent_elo - req.player_elo) / 400.0))
+    score = {"win": 1.0, "loss": 0.0, "draw": 0.5, "resigned": 0.0}.get(req.result, 0.0)
+
+    raw_delta = round(k * (score - expected))
+    new_elo = max(100, req.player_elo + raw_delta)
+    return EloCalculateResponse(new_elo=new_elo, delta=new_elo - req.player_elo, k_factor=k)
 
 
 @app.post("/api/tts")
