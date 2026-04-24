@@ -1,4 +1,5 @@
 import os
+import random
 import chess
 import chess.engine
 from dataclasses import dataclass
@@ -8,13 +9,15 @@ _BACKEND_DIR = Path(__file__).resolve().parent.parent
 _DEFAULT_SF_PATH = str(_BACKEND_DIR / "stockfish" / "stockfish-windows-x86-64-avx2.exe")
 STOCKFISH_PATH = os.getenv("STOCKFISH_PATH") or _DEFAULT_SF_PATH
 DEPTH = 15
+_UCI_ELO_MIN = 1320   # Stockfish's minimum supported UCI_Elo
+_PURE_RANDOM_MAX = 600  # At or below this Elo: 100% random moves, no engine evaluation
 
 
 @dataclass
 class MoveAnalysis:
     fen_after: str
     best_move: str    # human's better alternative (from pre-move position)
-    engine_move: str  # opponent's reply (skill-level-configured)
+    engine_move: str  # opponent's reply
     evaluation: dict[str, str | int]
     eval_delta: int
     is_blunder: bool
@@ -29,10 +32,7 @@ def _score_to_cp(score: chess.engine.PovScore) -> int:
 
 
 def _classify(cpl: int, delta: int) -> str:
-    """Classify a move by Centipawn Loss (CPL = how much worse than engine's top choice).
-    cpl  = max(0, -delta) — always non-negative.
-    delta is kept for brilliant detection: a CPL-0 move that also swings eval >50cp
-    in the user's favour (tactical shot / sacrifice) earns 'brilliant'."""
+    """Classify a move by Centipawn Loss."""
     if cpl == 0 and delta > 50:
         return "brilliant"
     if cpl == 0:
@@ -46,7 +46,64 @@ def _classify(cpl: int, delta: int) -> str:
     return "blunder"
 
 
-def analyze_move(fen: str, move_uci: str, skill_level: int = 20) -> MoveAnalysis:
+def _engine_reply(engine: chess.engine.SimpleEngine, board: chess.Board, target_elo: int) -> str:
+    """
+    Select an engine reply calibrated to target_elo.
+
+    Below Stockfish's UCI_Elo floor (1320), we blend random legal moves with
+    depth-1/skill-0 moves. The lower the Elo, the higher the random fraction.
+    At 1320+, we hand off to UCI_LimitStrength which is properly calibrated.
+    """
+    legal_moves = list(board.legal_moves)
+    if not legal_moves:
+        return ""
+
+    if target_elo <= _PURE_RANDOM_MAX:
+        # Roomba (150), Clown (300), Tilted (500): zero engine evaluation — pure chaos.
+        # Even depth=1 Stockfish sees Scholar's Mate threats; random moves don't.
+        return random.choice(legal_moves).uci()
+
+    if target_elo < _UCI_ELO_MIN:
+        # 601–1319 Elo: blend random with depth-1/skill-0 engine moves.
+        # At 700 Elo: ~86% random. At 1100 Elo: ~31% random. At 1300 Elo: ~3% random.
+        random_prob = 1.0 - ((target_elo - _PURE_RANDOM_MAX) / (_UCI_ELO_MIN - _PURE_RANDOM_MAX))
+        if random.random() < random_prob:
+            return random.choice(legal_moves).uci()
+        try:
+            engine.configure({"UCI_LimitStrength": False, "Skill Level": 0})
+        except chess.engine.EngineError:
+            pass
+        result = engine.play(board, chess.engine.Limit(depth=1))
+        return result.move.uci() if result.move else random.choice(legal_moves).uci()
+
+    # 1320+ Elo: UCI_LimitStrength is properly calibrated to real Elo ratings
+    try:
+        engine.configure({"UCI_LimitStrength": True, "UCI_Elo": min(target_elo, 3190)})
+    except chess.engine.EngineError:
+        # Fallback if engine doesn't support UCI_Elo
+        sl = min(20, max(0, round((target_elo - 800) / 100)))
+        try:
+            engine.configure({"UCI_LimitStrength": False, "Skill Level": sl})
+        except chess.engine.EngineError:
+            pass
+    result = engine.play(board, chess.engine.Limit(depth=DEPTH))
+    return result.move.uci() if result.move else ""
+
+
+def get_engine_first_move(fen: str, target_elo: int) -> str:
+    """Return the engine's opening move when the player is playing as black."""
+    board = chess.Board(fen)
+    with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
+        return _engine_reply(engine, board, target_elo)
+
+
+def analyze_move(
+    fen: str,
+    move_uci: str,
+    skill_level: int = 20,
+    play_depth: int = 15,
+    target_elo: int = 2700,
+) -> MoveAnalysis:
     board = chess.Board(fen)
     move = chess.Move.from_uci(move_uci)
 
@@ -70,23 +127,13 @@ def analyze_move(fen: str, move_uci: str, skill_level: int = 20) -> MoveAnalysis
 
         engine_move = ""
         if not board.is_game_over():
-            try:
-                engine.configure({"Skill Level": skill_level})
-            except chess.engine.EngineError:
-                pass
-            # Low skill tiers get a hard cap so the engine genuinely plays weak moves
-            if skill_level < 5:
-                play_limit = chess.engine.Limit(depth=1)
-            else:
-                play_limit = chess.engine.Limit(depth=max(5, DEPTH // 3))
-            engine_result = engine.play(board, play_limit)
-            engine_move = engine_result.move.uci() if engine_result.move else ""
+            engine_move = _engine_reply(engine, board, target_elo)
 
     delta = (cp_after - cp_before) if moving_color == chess.WHITE else -(cp_after - cp_before)
     cpl = max(0, -delta)
     classification = _classify(cpl, delta)
 
-    # Opening exemption: upgrade inaccuracies to 'good' for the first 10 half-moves
+    # Opening exemption: upgrade inaccuracies in moves 1–10
     if classification == "inaccuracy" and len(board.move_stack) <= 10:
         classification = "good"
 

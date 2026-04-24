@@ -174,14 +174,29 @@ Batch 3: GameContext moveLog + lib/db.ts + concludeGame() + ChessBoard wiring
 
 ---
 
-## Phase 7 — Pattern Recognition & Long-Term Memory (Stretch)
+## Phase 6 — Late Items (now complete)
 
-**Goal:** AI references your historical blunders in coaching messages.
+- ✅ **Elo update** — `lib/db.ts` has `getUserElo` + `updateElo`. `concludeGame` fetches current Elo, applies ±15 (win/loss/resigned) or 0 (draw), floors at 100.
+- ✅ **Game-over auto-conclude** — `ChessBoard.tsx` calls `concludeGame(detectResult(game))` after both user-move and engine-move game-over. `detectResult` uses `isCheckmate()` + `turn()`.
 
-- Aggregate blunder patterns per user from Firestore game history
-- On game start, fetch top 3 recurring CPL-spike positions
-- Inject into system prompt: `"This user repeatedly blunders in the Sicilian at move 15"`
-- Coach proactively warns before similar positions arise
+---
+
+## Phase 7 — Pattern Recognition & Long-Term Memory ✅
+
+- `lib/db.ts` — `getUserBlunderPatterns(userId)`: queries last 20 games, finds blunder/mistake moves, aggregates by game phase (opening/middlegame/endgame) and piece type, returns a compact context string
+- `GameContext.tsx` — fetches patterns via `useEffect` on `boardResetToken` change; sends `blunder_context` with every `/api/move` request
+- `backend/main.py` — `MoveRequest` accepts `blunder_context: str | None`
+- `backend/services/coach.py` — appends `[Player History]` block to persona system prompt when context is present; coach references patterns naturally
+
+**Threshold:** requires ≥ 3 total blunders across ≥ 3 games before patterns surface (avoids noise on new accounts).
+
+## Phase 8 — Color Randomization & Board Flip ✅
+
+- Color randomly assigned (white/black) on every new game and persona change
+- Flip button visible above board before first move; disappears after move 1
+- Engine auto-moves first when player is black (`POST /api/engine-first-move`)
+- `isDraggablePiece` restricts drag to player's own pieces only
+- Fixed: UCI strings now parsed via `uciToMove()` helper — chess.js v1 only accepts `{from, to, promotion}` objects
 
 ---
 

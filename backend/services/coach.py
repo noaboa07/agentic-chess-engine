@@ -35,6 +35,7 @@ def get_coaching_message(
     move_number: int,
     hint_requested: bool,
     persona_id: str = "default",
+    blunder_context: str | None = None,
 ) -> str | None:
     if not should_coach(move_number, classification, hint_requested):
         return None
@@ -54,8 +55,16 @@ def get_coaching_message(
     )
 
     persona = get_persona(persona_id)
+    system_prompt = persona.system_prompt
+    if blunder_context:
+        system_prompt += (
+            f"\n\n[Player History]\n{blunder_context}\n"
+            "Weave these patterns into your feedback naturally when relevant — "
+            "don't recite them robotically."
+        )
+
     messages = [
-        SystemMessage(content=persona.system_prompt),
+        SystemMessage(content=system_prompt),
         HumanMessage(content=user_content),
     ]
 

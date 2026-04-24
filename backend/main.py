@@ -4,7 +4,7 @@ from fastapi.responses import Response
 from pydantic import BaseModel
 import chess
 from dotenv import load_dotenv
-from services.stockfish import analyze_move
+from services.stockfish import analyze_move, get_engine_first_move
 from services.coach import get_coaching_message
 from services.tts import generate_speech
 from personas.personas import get_persona
@@ -33,6 +33,12 @@ class MoveRequest(BaseModel):
     move_number: int = 1
     teach_mode: bool = False
     hint_requested: bool = False
+    blunder_context: str | None = None
+
+
+class EngineFirstMoveRequest(BaseModel):
+    fen: str
+    persona: str = "clown_noah"
 
 
 class TtsRequest(BaseModel):
@@ -63,7 +69,7 @@ def new_game(req: NewGameRequest) -> dict:
 def process_move(req: MoveRequest) -> dict:
     try:
         persona = get_persona(req.persona)
-        result = analyze_move(req.fen, req.move, skill_level=persona.skill_level)
+        result = analyze_move(req.fen, req.move, skill_level=persona.skill_level, play_depth=persona.play_depth, target_elo=persona.elo)
 
         coach_message = None
         if req.teach_mode or req.hint_requested:
@@ -76,6 +82,7 @@ def process_move(req: MoveRequest) -> dict:
                     move_number=req.move_number,
                     hint_requested=req.hint_requested,
                     persona_id=req.persona,
+                    blunder_context=req.blunder_context,
                 )
             except Exception:
                 coach_message = None
@@ -95,6 +102,16 @@ def process_move(req: MoveRequest) -> dict:
     except Exception as e:
         import traceback
         traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/engine-first-move")
+def engine_first_move(req: EngineFirstMoveRequest) -> dict:
+    try:
+        persona = get_persona(req.persona)
+        move = get_engine_first_move(req.fen, persona.elo)
+        return {"engine_move": move}
+    except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 
