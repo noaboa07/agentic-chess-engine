@@ -1,7 +1,7 @@
 'use client';
 
 import { useEffect, useRef, useState } from 'react';
-import { useGame, type Evaluation, type MoveClassification, type PersonaId, PERSONAS, TIME_CONTROLS } from '../context/GameContext';
+import { useGame, type Evaluation, type MoveClassification } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
 import LeaderboardModal from './LeaderboardModal';
 
@@ -54,16 +54,19 @@ function SignOutIcon() {
   );
 }
 
-export default function CoachPanel() {
+interface CoachPanelProps {
+  onLeaveGame?: () => void;
+}
+
+export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
   const [status, setStatus] = useState<BackendStatus>('checking');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { signOut } = useAuth();
   const {
     evaluation, lastClassification, bestMove, coachMessage,
-    persona, setPersona, isAnalyzing, teachMode, setTeachMode,
-    lastMoveContext, requestHint, globalMuted, setGlobalMuted,
-    moveCount, resignGame, timeControl, setTimeControl,
+    isAnalyzing, teachMode, lastMoveContext, requestHint,
+    globalMuted, setGlobalMuted, moveCount, resignGame,
   } = useGame();
 
   // TTS playback — gated by teach mode and global mute
@@ -127,7 +130,7 @@ export default function CoachPanel() {
   };
 
   return (
-    <div className="flex flex-col h-full min-h-[560px] w-full max-w-sm rounded-lg border border-white/10 bg-zinc-900 p-6">
+    <div className="flex flex-col h-full w-full rounded-lg border border-white/10 bg-zinc-900 p-6 overflow-y-auto">
       {/* Header */}
       <div className="flex items-center justify-between mb-4">
         <div className="flex items-center gap-3">
@@ -165,67 +168,15 @@ export default function CoachPanel() {
         </div>
       </div>
 
-      {/* Teach Mode toggle */}
-      <div className="flex items-center justify-between rounded-md bg-zinc-800 px-4 py-3 mb-4">
-        <div>
-          <p className="text-xs font-medium text-zinc-200">Teach Mode</p>
-          <p className="text-[10px] text-zinc-500">AI coaching &amp; voice commentary</p>
-        </div>
+      {/* Leave game */}
+      {onLeaveGame && (
         <button
-          onClick={() => setTeachMode(!teachMode)}
-          className={`relative inline-flex h-5 w-9 items-center rounded-full transition-colors ${teachMode ? 'bg-indigo-600' : 'bg-zinc-600'}`}
-          role="switch"
-          aria-checked={teachMode}
+          onClick={onLeaveGame}
+          className="mb-4 w-full rounded-md border border-white/10 bg-zinc-800 px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
         >
-          <span className={`inline-block h-3 w-3 transform rounded-full bg-white transition-transform ${teachMode ? 'translate-x-5' : 'translate-x-1'}`} />
+          ← Change Opponent
         </button>
-      </div>
-
-      {/* Time control selector */}
-      <div className="mb-4">
-        <p className="text-[10px] font-semibold uppercase tracking-wider text-zinc-500 mb-1.5">Time Control</p>
-        <div className="flex gap-1">
-          {TIME_CONTROLS.map(tc => {
-            const isActive = timeControl?.label === tc.label || (tc.label === 'Untimed' && !timeControl);
-            const disabled = moveCount > 0;
-            return (
-              <button
-                key={tc.label}
-                onClick={() => setTimeControl(tc.label === 'Untimed' ? null : tc)}
-                disabled={disabled}
-                title={disabled ? 'Cannot change time control mid-game' : tc.label}
-                className={`flex-1 rounded py-1.5 text-[10px] font-semibold transition-colors ${
-                  isActive
-                    ? 'bg-indigo-600 text-white'
-                    : disabled
-                    ? 'bg-zinc-800 text-zinc-600 cursor-not-allowed'
-                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
-                }`}
-              >
-                {tc.label}
-              </button>
-            );
-          })}
-        </div>
-      </div>
-
-      {/* Persona selector */}
-      <div className="grid grid-cols-2 gap-1.5 mb-4">
-        {PERSONAS.map(p => (
-          <button
-            key={p.id}
-            onClick={() => setPersona(p.id as PersonaId)}
-            className={`rounded-md px-2 py-1.5 text-left transition-colors ${
-              persona === p.id
-                ? 'bg-indigo-600 text-white'
-                : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200'
-            }`}
-          >
-            <p className="text-xs font-medium leading-tight">{p.name}</p>
-            <p className="text-[10px] leading-tight opacity-70">{p.elo} Elo</p>
-          </button>
-        ))}
-      </div>
+      )}
 
       {/* Analysis area */}
       {isAnalyzing ? (

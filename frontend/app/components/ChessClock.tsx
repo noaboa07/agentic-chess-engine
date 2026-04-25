@@ -1,7 +1,8 @@
 'use client';
 
 import { useEffect, useRef, useState, type ReactNode } from 'react';
-import { useGame, type PlayerColor } from '../context/GameContext';
+import { useGame, type PlayerColor, type GameResult } from '../context/GameContext';
+import { playSfx } from '../../lib/audio';
 
 function formatMs(ms: number): string {
   if (ms <= 0) return '0:00';
@@ -37,10 +38,15 @@ function ClockRow({ label, ms, active }: ClockRowProps) {
   );
 }
 
-export default function ChessClock({ children }: { children: ReactNode }) {
+interface ChessClockProps {
+  children: ReactNode;
+  onTimeout?: (result: GameResult) => void;
+}
+
+export default function ChessClock({ children, onTimeout }: ChessClockProps) {
   const {
     timeControl, clockActiveColor, playerColor,
-    boardResetToken, activePersona, concludeGame,
+    boardResetToken, activePersona, concludeGame, globalMuted,
   } = useGame();
 
   const [whiteMs, setWhiteMs] = useState(timeControl?.initialMs ?? 0);
@@ -48,6 +54,9 @@ export default function ChessClock({ children }: { children: ReactNode }) {
 
   const prevActiveRef = useRef<PlayerColor | null>(null);
   const timeoutFiredRef = useRef(false);
+  const tenSecondsPlayedRef = useRef(new Set<PlayerColor>());
+  const globalMutedRef = useRef(globalMuted);
+  globalMutedRef.current = globalMuted;
 
   // Reset clocks on new game or time control change
   useEffect(() => {
@@ -55,6 +64,7 @@ export default function ChessClock({ children }: { children: ReactNode }) {
     setBlackMs(timeControl?.initialMs ?? 0);
     timeoutFiredRef.current = false;
     prevActiveRef.current = null;
+    tenSecondsPlayedRef.current = new Set();
   }, [boardResetToken, timeControl]);
 
   // Apply increment to the color that just finished their turn
@@ -77,15 +87,31 @@ export default function ChessClock({ children }: { children: ReactNode }) {
     return () => clearInterval(id);
   }, [clockActiveColor, timeControl]);
 
+  // 10-second audio warning (fires once per player per game)
+  useEffect(() => {
+    if (!clockActiveColor || !timeControl || timeControl.initialMs === 0) return;
+    const activeMs = clockActiveColor === 'white' ? whiteMs : blackMs;
+    if (activeMs > 0 && activeMs <= 10_000 && !tenSecondsPlayedRef.current.has(clockActiveColor)) {
+      tenSecondsPlayedRef.current.add(clockActiveColor);
+      playSfx('tenseconds', globalMutedRef.current);
+    }
+  }, [whiteMs, blackMs, clockActiveColor, timeControl]);
+
   // Timeout detection
   useEffect(() => {
     if (timeoutFiredRef.current || clockActiveColor === null || !timeControl || timeControl.initialMs === 0) return;
     const activeMs = clockActiveColor === 'white' ? whiteMs : blackMs;
     if (activeMs === 0) {
       timeoutFiredRef.current = true;
-      void concludeGame(clockActiveColor === playerColor ? 'loss' : 'win');
+      const result: GameResult = clockActiveColor === playerColor ? 'loss' : 'win';
+      if (onTimeout) {
+        onTimeout(result);
+      } else {
+        playSfx('game-end', globalMutedRef.current);
+        void concludeGame(result);
+      }
     }
-  }, [whiteMs, blackMs, clockActiveColor, timeControl, concludeGame, playerColor]);
+  }, [whiteMs, blackMs, clockActiveColor, timeControl, concludeGame, playerColor, onTimeout]);
 
   const isTimed = !!timeControl && timeControl.initialMs > 0;
   const opponentColor: PlayerColor = playerColor === 'white' ? 'black' : 'white';

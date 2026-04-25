@@ -1,6 +1,6 @@
 'use client';
 
-import { createContext, useContext, useState, useCallback, useEffect, type ReactNode } from 'react';
+import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
 import { saveGame, getModeElo, getModeGameCount, updateModeElo, getUserBlunderPatterns, type EloMode } from '../../lib/db';
 import { detectOpening } from '../../lib/openings';
@@ -121,6 +121,7 @@ interface GameState {
   timeControl: TimeControl | null;
   clockActiveColor: PlayerColor | null;
   userModeElo: number | null;
+  gameOverPending: { result: GameResult; reason: string } | null;
 }
 
 const randomColor = (): PlayerColor => (Math.random() < 0.5 ? 'white' : 'black');
@@ -139,6 +140,7 @@ const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' 
   lastMoveContext: null,
   currentOpening: null,
   clockActiveColor: null,
+  gameOverPending: null,
 };
 
 export interface SubmitMoveResult {
@@ -150,7 +152,8 @@ interface GameContextValue extends GameState {
   activePersona: PersonaMeta;
   submitMove: (fen: string, moveUci: string, san: string) => Promise<SubmitMoveResult | null>;
   requestHint: () => Promise<void>;
-  concludeGame: (result: GameResult) => Promise<void>;
+  concludeGame: (result: GameResult, reason?: string) => Promise<void>;
+  acknowledgeGameOver: () => Promise<void>;
   resignGame: () => Promise<void>;
   setPersona: (id: PersonaId) => void;
   setTeachMode: (v: boolean) => void;
@@ -196,7 +199,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const flipPlayerColor = useCallback(() => {
     setState(prev => {
       if (prev.moveCount > 0) return prev;
-      return { ...prev, playerColor: prev.playerColor === 'white' ? 'black' : 'white' };
+      return {
+        ...prev,
+        ...FRESH_GAME_STATE,
+        playerColor: prev.playerColor === 'white' ? 'black' : 'white',
+        boardResetToken: prev.boardResetToken + 1,
+      };
     });
   }, []);
 
@@ -323,17 +331,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, [state.lastMoveContext, state.persona, state.moveCount]);
 
-  const concludeGame = useCallback(async (result: GameResult): Promise<void> => {
-    if (user && state.moveLog.length > 0) {
-      const persona = PERSONAS.find(p => p.id === state.persona)!;
-      const mode = (state.timeControl?.label ?? 'Untimed') as EloMode;
+  const stateRef = useRef(state);
+  stateRef.current = state;
+
+  const concludeGame = useCallback(async (result: GameResult, reason = 'game over'): Promise<void> => {
+    setState(prev => ({ ...prev, gameOverPending: { result, reason } }));
+  }, []);
+
+  const acknowledgeGameOver = useCallback(async (): Promise<void> => {
+    const { moveLog, persona: personaId, timeControl: tc, gameOverPending } = stateRef.current;
+    if (!gameOverPending) return;
+
+    if (user && moveLog.length > 0) {
+      const persona = PERSONAS.find(p => p.id === personaId)!;
+      const mode = (tc?.label ?? 'Untimed') as EloMode;
       try {
         await saveGame(user.id, {
-          opponent_id: state.persona,
+          opponent_id: personaId,
           opponent_skill: persona.skillLevel,
-          result,
-          moves: state.moveLog,
-          time_control: state.timeControl?.label ?? null,
+          result: gameOverPending.result,
+          moves: moveLog,
+          time_control: tc?.label ?? null,
         });
         const [playerElo, gamesPlayed] = await Promise.all([
           getModeElo(user.id, mode),
@@ -345,7 +363,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
           body: JSON.stringify({
             player_elo: playerElo,
             opponent_elo: persona.elo,
-            result,
+            result: gameOverPending.result,
             games_played: gamesPlayed,
           }),
         });
@@ -357,16 +375,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
         console.error('Failed to save game:', err);
       }
     }
+
     setState(prev => ({
       ...prev,
       ...FRESH_GAME_STATE,
+      gameOverPending: null,
       boardResetToken: prev.boardResetToken + 1,
       playerColor: randomColor(),
     }));
-  }, [user, state.persona, state.moveLog, state.timeControl]);
+  }, [user]);
 
   const resignGame = useCallback(async (): Promise<void> => {
-    await concludeGame('resigned');
+    await concludeGame('resigned', 'by resignation');
   }, [concludeGame]);
 
   const setTimeControl = useCallback((tc: TimeControl | null) => {
@@ -392,6 +412,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       submitMove,
       requestHint,
       concludeGame,
+      acknowledgeGameOver,
       resignGame,
       setPersona,
       setTeachMode,

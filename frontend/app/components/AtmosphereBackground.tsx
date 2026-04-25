@@ -125,7 +125,7 @@ export default function AtmosphereBackground({ children }: { children: ReactNode
   }, [globalMuted]);
 
   return (
-    <div className={`min-h-screen transition-colors duration-1000 ${BG_CLASSES[intensity]}`}>
+    <div className={`h-full transition-colors duration-1000 ${BG_CLASSES[intensity]}`}>
       {children}
     </div>
   );
