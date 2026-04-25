@@ -15,7 +15,7 @@ const geistMono = localFont({
 });
 
 export const metadata: Metadata = {
-  title: "Agentic Chess",
+  title: "The Noah Verse",
   description: "13 AI personas. One board. Zero mercy.",
 };
 

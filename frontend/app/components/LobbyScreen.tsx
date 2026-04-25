@@ -20,9 +20,12 @@ export default function LobbyScreen({ onStartGame, onBack }: Props) {
         {onBack && (
           <button
             onClick={onBack}
-            className="text-sm text-zinc-400 hover:text-zinc-200 transition-colors"
+            className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 transition-colors"
           >
-            ← Home
+            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
+              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
+            </svg>
+            Home
           </button>
         )}
       </div>

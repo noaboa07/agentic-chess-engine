@@ -5,7 +5,7 @@ export default function LandingPage() {
   return (
     <main className="h-full flex flex-col items-center justify-center gap-8 bg-zinc-950">
       <div className="text-center">
-        <h1 className="text-6xl font-extrabold text-white tracking-tight">Agentic Chess</h1>
+        <h1 className="text-6xl font-extrabold text-white tracking-tight">The Noah Verse</h1>
         <p className="mt-3 text-lg text-zinc-400">13 AI personas. One board. Zero mercy.</p>
       </div>
 
