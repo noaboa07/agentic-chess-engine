@@ -1,5 +1,30 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <circle cx="32" cy="32" r="32" fill="#7c2d12"/>
-  <text x="32" y="38" font-family="serif" font-size="20" text-anchor="middle">😤</text>
-  <text x="32" y="54" font-family="sans-serif" font-size="9" fill="#fed7aa" text-anchor="middle">500 ELO</text>
+  <defs>
+    <radialGradient id="tilt-face" cx="50%" cy="40%" r="60%">
+      <stop offset="0%" stop-color="#f97316"/>
+      <stop offset="100%" stop-color="#7f1d1d"/>
+    </radialGradient>
+  </defs>
+  <circle cx="32" cy="32" r="32" fill="#1c0505"/>
+  <!-- Steam puffs -->
+  <path d="M 10 16 Q 8 11 11 7 Q 9 5 12 3" fill="none" stroke="#f97316" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
+  <path d="M 54 16 Q 56 11 53 7 Q 55 5 52 3" fill="none" stroke="#f97316" stroke-width="1.8" stroke-linecap="round" opacity="0.8"/>
+  <!-- Face -->
+  <circle cx="32" cy="36" r="21" fill="url(#tilt-face)"/>
+  <!-- Angry furrowed brows -->
+  <path d="M 18 24 L 29 29" stroke="#1c0505" stroke-width="3.5" stroke-linecap="round"/>
+  <path d="M 46 24 L 35 29" stroke="#1c0505" stroke-width="3.5" stroke-linecap="round"/>
+  <!-- Squinting eyes -->
+  <ellipse cx="25" cy="33" rx="4.5" ry="3" fill="#1c0505"/>
+  <ellipse cx="39" cy="33" rx="4.5" ry="3" fill="#1c0505"/>
+  <circle cx="25" cy="33" r="1.5" fill="#ef4444"/>
+  <circle cx="39" cy="33" r="1.5" fill="#ef4444"/>
+  <!-- Gritted teeth -->
+  <path d="M 23 42 Q 32 48 41 42" fill="#1c0505" stroke="#1c0505" stroke-width="1"/>
+  <rect x="24" y="41" width="16" height="5" rx="1.5" fill="white"/>
+  <line x1="28" y1="41" x2="28" y2="46" stroke="#fca5a5" stroke-width="1"/>
+  <line x1="32" y1="41" x2="32" y2="46" stroke="#fca5a5" stroke-width="1"/>
+  <line x1="36" y1="41" x2="36" y2="46" stroke="#fca5a5" stroke-width="1"/>
+  <!-- Forehead vein -->
+  <path d="M 28 22 L 25 18 L 28 17" fill="none" stroke="#dc2626" stroke-width="1.2" opacity="0.9"/>
 </svg>

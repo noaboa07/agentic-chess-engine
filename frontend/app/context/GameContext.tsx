@@ -2,8 +2,8 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { saveGame, getModeElo, getModeGameCount, updateModeElo, getUserBlunderPatterns, type EloMode } from '../../lib/db';
-import { detectOpening } from '../../lib/openings';
+import { saveGame, saveCoachReport, getModeElo, getModeGameCount, updateModeElo, getUserBlunderPatterns, getRecentGames, type EloMode, type CoachReportData, type RecentGame } from '../../lib/db';
+import { detectOpeningFull } from '../../lib/openings';
 
 export type MoveClassification = 'brilliant' | 'great' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
 export type GameResult = 'win' | 'loss' | 'draw' | 'resigned';
@@ -29,6 +29,7 @@ interface ApiMoveResponse {
   is_blunder: boolean;
   classification: MoveClassification;
   coach_message: string | null;
+  debate_transcript: DebateEntry[] | null;
 }
 
 export type PersonaId =
@@ -45,6 +46,18 @@ export type PersonaId =
   | 'devil_noah'
   | 'angel_noah'
   | 'god_noah';
+
+export interface DebateEntry {
+  agent: string;
+  move: string;
+  argument: string;
+}
+
+export interface AdaptiveSuggestion {
+  type: 'upgrade' | 'downgrade';
+  message: string;
+  suggestedPersonaId: PersonaId;
+}
 
 export interface PersonaMeta {
   id: PersonaId;
@@ -77,6 +90,39 @@ function computeIntensity(history: MoveClassification[]): IntensityLevel {
   if (last3.length === 3 && last3.every(c => c === 'brilliant' || c === 'great' || c === 'good')) return 'hype';
   if (last3.length === 3 && last3.every(c => c === 'inaccuracy' || c === 'mistake' || c === 'blunder')) return 'dramatic';
   return 'calm';
+}
+
+function computeAdaptiveSuggestion(
+  recentGames: RecentGame[],
+  personaId: PersonaId,
+  currentResult: GameResult,
+  currentEarlyBlunders: number,
+): AdaptiveSuggestion | null {
+  const personaIndex = PERSONAS.findIndex(p => p.id === personaId);
+  if (personaIndex === -1) return null;
+
+  const allResults = [currentResult, ...recentGames.map(g => g.result)];
+  const allEarlyBlunders = [currentEarlyBlunders, ...recentGames.map(g => g.earlyBlunders)];
+
+  if (allResults.slice(0, 3).every(r => r === 'win') && personaIndex < PERSONAS.length - 1) {
+    const next = PERSONAS[personaIndex + 1]!;
+    return {
+      type: 'upgrade',
+      message: `3 wins in a row! Ready to challenge ${next.name} (${next.elo} Elo)?`,
+      suggestedPersonaId: next.id,
+    };
+  }
+
+  if (allEarlyBlunders.slice(0, 2).every(b => b >= 3) && personaIndex > 0) {
+    const prev = PERSONAS[personaIndex - 1]!;
+    return {
+      type: 'downgrade',
+      message: `Early blunders detected again. Consider stepping down to ${prev.name} (${prev.elo} Elo) to build fundamentals.`,
+      suggestedPersonaId: prev.id,
+    };
+  }
+
+  return null;
 }
 
 interface LastMoveContext {
@@ -122,13 +168,20 @@ interface GameState {
   clockActiveColor: PlayerColor | null;
   userModeElo: number | null;
   gameOverPending: { result: GameResult; reason: string } | null;
+  coachReport: CoachReportData | null;
+  coachReportLoading: boolean;
+  openingTipSent: boolean;
+  adaptiveSuggestion: AdaptiveSuggestion | null;
+  debateTranscript: DebateEntry[] | null;
+  explainMessage: string | null;
+  isExplaining: boolean;
 }
 
 const randomColor = (): PlayerColor => (Math.random() < 0.5 ? 'white' : 'black');
 
 // Fields reset at the start of each new game (persona switch or concludeGame)
-// timeControl persists — user keeps their selected format between games
-const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' | 'boardResetToken' | 'playerColor' | 'blunderContext' | 'takeBackToken' | 'timeControl' | 'userModeElo'> = {
+// timeControl, coachReport, coachReportLoading persist — they outlive the board reset
+const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' | 'boardResetToken' | 'playerColor' | 'blunderContext' | 'takeBackToken' | 'timeControl' | 'userModeElo' | 'coachReport' | 'coachReportLoading'> = {
   evaluation: null,
   lastClassification: null,
   bestMove: null,
@@ -141,6 +194,11 @@ const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' 
   currentOpening: null,
   clockActiveColor: null,
   gameOverPending: null,
+  openingTipSent: false,
+  adaptiveSuggestion: null,
+  debateTranscript: null,
+  explainMessage: null,
+  isExplaining: false,
 };
 
 export interface SubmitMoveResult {
@@ -150,7 +208,7 @@ export interface SubmitMoveResult {
 interface GameContextValue extends GameState {
   intensity: IntensityLevel;
   activePersona: PersonaMeta;
-  submitMove: (fen: string, moveUci: string, san: string) => Promise<SubmitMoveResult | null>;
+  submitMove: (fen: string, moveUci: string, san: string, timeRemainingSecs?: number | null) => Promise<SubmitMoveResult | null>;
   requestHint: () => Promise<void>;
   concludeGame: (result: GameResult, reason?: string) => Promise<void>;
   acknowledgeGameOver: () => Promise<void>;
@@ -163,6 +221,9 @@ interface GameContextValue extends GameState {
   setTimeControl: (tc: TimeControl | null) => void;
   startClock: (color: PlayerColor) => void;
   pauseClock: () => void;
+  dismissCoachReport: () => void;
+  adaptiveSuggestion: AdaptiveSuggestion | null;
+  explainMove: (fen: string, candidateUci: string) => Promise<void>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -184,6 +245,8 @@ export function GameProvider({ children }: { children: ReactNode }) {
     currentOpening: null,
     timeControl: null,
     userModeElo: null,
+    coachReport: null,
+    coachReportLoading: false,
   });
 
   const setPersona = useCallback((id: PersonaId) => {
@@ -255,12 +318,21 @@ export function GameProvider({ children }: { children: ReactNode }) {
     fen: string,
     moveUci: string,
     san: string,
+    timeRemainingSecs: number | null = null,
   ): Promise<SubmitMoveResult | null> => {
+    const tipMoveNum = state.moveCount + 1;
+    const shouldSendTip =
+      state.teachMode &&
+      !stateRef.current.openingTipSent &&
+      stateRef.current.currentOpening !== null &&
+      tipMoveNum >= 5 && tipMoveNum <= 12;
+
     setState(prev => ({
       ...prev,
       isAnalyzing: true,
       lastMoveContext: { fen, moveUci },
       moveCount: prev.moveCount + 1,
+      ...(shouldSendTip ? { openingTipSent: true } : {}),
     }));
 
     try {
@@ -271,10 +343,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
           fen,
           move: moveUci,
           persona: state.persona,
-          move_number: state.moveCount + 1,
+          move_number: tipMoveNum,
           teach_mode: state.teachMode,
           hint_requested: false,
           blunder_context: state.blunderContext,
+          time_remaining_secs: timeRemainingSecs,
+          opening_name: shouldSendTip ? stateRef.current.currentOpening : null,
         }),
       });
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
@@ -292,7 +366,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         moveHistory: [...prev.moveHistory, data.classification].slice(-5),
         moveLog: [...prev.moveLog, record],
         isAnalyzing: false,
-        currentOpening: detectOpening(data.fen_after) ?? prev.currentOpening,
+        currentOpening: detectOpeningFull(data.fen_after) ?? prev.currentOpening,
+        debateTranscript: data.debate_transcript ?? null,
+        explainMessage: null,
       }));
       return { engineMove: data.engine_move || null };
     } catch (err) {
@@ -401,6 +477,92 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, clockActiveColor: null }));
   }, []);
 
+  // Generate coach report in the background when a game ends (≥5 player moves)
+  const reportFetchingRef = useRef(false);
+  useEffect(() => {
+    if (!state.gameOverPending) {
+      reportFetchingRef.current = false;
+      return;
+    }
+    if (reportFetchingRef.current) return;
+    const { moveLog, persona, gameOverPending } = stateRef.current;
+    if (!gameOverPending || moveLog.length < 3) return;
+
+    reportFetchingRef.current = true;
+    setState(prev => ({ ...prev, coachReportLoading: true, coachReport: null }));
+
+    fetch(`${BACKEND_URL}/api/coach-report`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        move_log: moveLog,
+        persona_id: persona,
+        result: gameOverPending.result,
+        opening_name: stateRef.current.currentOpening,
+        player_color: stateRef.current.playerColor,
+      }),
+    })
+      .then(res => { if (!res.ok) throw new Error(); return res.json(); })
+      .then((data: CoachReportData) => {
+        setState(prev => ({ ...prev, coachReport: data, coachReportLoading: false }));
+        if (user) saveCoachReport(user.id, data).catch(() => {});
+      })
+      .catch(() => setState(prev => ({ ...prev, coachReportLoading: false })));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.gameOverPending]);
+
+  const dismissCoachReport = useCallback(() => {
+    setState(prev => ({ ...prev, coachReport: null, coachReportLoading: false }));
+  }, []);
+
+  const explainMove = useCallback(async (fen: string, candidateUci: string): Promise<void> => {
+    setState(prev => ({ ...prev, isExplaining: true, explainMessage: null }));
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/explain-move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          fen,
+          candidate_move: candidateUci,
+          persona: stateRef.current.persona,
+        }),
+      });
+      if (!res.ok) throw new Error(`Backend error: ${res.status}`);
+      const data = await res.json() as { explanation: string | null };
+      setState(prev => ({
+        ...prev,
+        explainMessage: data.explanation ?? 'This move is close to optimal — no major issues.',
+        isExplaining: false,
+      }));
+    } catch {
+      setState(prev => ({ ...prev, isExplaining: false }));
+    }
+  }, []);
+
+  // Compute adaptive difficulty suggestion when a game ends
+  const adaptiveFetchingRef = useRef(false);
+  useEffect(() => {
+    if (!state.gameOverPending) {
+      adaptiveFetchingRef.current = false;
+      return;
+    }
+    if (adaptiveFetchingRef.current || !user) return;
+    adaptiveFetchingRef.current = true;
+
+    const { persona: personaId, moveLog, gameOverPending } = stateRef.current;
+    if (!gameOverPending) return;
+
+    const earlyBlunders = moveLog.filter(
+      m => m.classification === 'blunder' && parseInt(m.fen.split(' ')[5] ?? '1', 10) <= 10,
+    ).length;
+
+    getRecentGames(user.id, personaId, 2).then(recentGames => {
+      const suggestion = computeAdaptiveSuggestion(recentGames, personaId, gameOverPending.result, earlyBlunders);
+      if (suggestion) setState(prev => ({ ...prev, adaptiveSuggestion: suggestion }));
+    }).catch(() => {});
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [state.gameOverPending, user]);
+
   const intensity = computeIntensity(state.moveHistory);
   const activePersona = PERSONAS.find(p => p.id === state.persona) ?? PERSONAS[0];
 
@@ -422,6 +584,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       setTimeControl,
       startClock,
       pauseClock,
+      dismissCoachReport,
+      adaptiveSuggestion: state.adaptiveSuggestion,
+      explainMove,
     }}>
       {children}
     </GameContext.Provider>

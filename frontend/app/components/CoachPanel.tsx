@@ -4,6 +4,8 @@ import { useEffect, useRef, useState } from 'react';
 import { useGame, type Evaluation, type MoveClassification } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
 import LeaderboardModal from './LeaderboardModal';
+import WeaknessPanel from './WeaknessPanel';
+import DebatePanel from './DebatePanel';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
 
@@ -67,6 +69,7 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
     evaluation, lastClassification, bestMove, coachMessage,
     isAnalyzing, teachMode, lastMoveContext, requestHint,
     globalMuted, setGlobalMuted, moveCount, resignGame,
+    explainMessage, isExplaining,
   } = useGame();
 
   // TTS playback — gated by teach mode and global mute
@@ -217,6 +220,17 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
               Explain last move
             </button>
           )}
+          {teachMode && (isExplaining || explainMessage) && (
+            <div className="rounded-md border border-sky-500/25 bg-sky-950/40 px-4 py-3">
+              <p className="text-[10px] text-sky-400 uppercase tracking-wide mb-1.5">Why Not?</p>
+              {isExplaining ? (
+                <p className="text-xs text-zinc-400 animate-pulse">Analyzing candidate move…</p>
+              ) : (
+                <p className="text-xs text-zinc-200 leading-relaxed">{explainMessage}</p>
+              )}
+            </div>
+          )}
+          {teachMode && <DebatePanel />}
         </div>
       ) : (
         <div className="flex flex-1 items-center justify-center">
@@ -226,7 +240,8 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
         </div>
       )}
       {/* Footer */}
-      <div className="mt-auto pt-4">
+      <div className="mt-auto pt-4 flex flex-col gap-2">
+        <WeaknessPanel />
         <button
           onClick={() => setShowLeaderboard(true)}
           className="w-full rounded-md bg-zinc-800 px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"

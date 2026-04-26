@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useRef, useState, type ReactNode } from 'react';
+import { useEffect, useRef, useState, type ReactNode, type MutableRefObject } from 'react';
 import { useGame, type PlayerColor, type GameResult } from '../context/GameContext';
 import { playSfx } from '../../lib/audio';
 
@@ -41,9 +41,10 @@ function ClockRow({ label, ms, active }: ClockRowProps) {
 interface ChessClockProps {
   children: ReactNode;
   onTimeout?: (result: GameResult) => void;
+  playerTimeRemainingRef?: MutableRefObject<number>;
 }
 
-export default function ChessClock({ children, onTimeout }: ChessClockProps) {
+export default function ChessClock({ children, onTimeout, playerTimeRemainingRef }: ChessClockProps) {
   const {
     timeControl, clockActiveColor, playerColor,
     boardResetToken, activePersona, concludeGame, globalMuted,
@@ -117,6 +118,11 @@ export default function ChessClock({ children, onTimeout }: ChessClockProps) {
   const opponentColor: PlayerColor = playerColor === 'white' ? 'black' : 'white';
   const opponentMs = opponentColor === 'white' ? whiteMs : blackMs;
   const playerMs   = playerColor  === 'white' ? whiteMs : blackMs;
+
+  // Keep caller's ref in sync with the player's remaining time (used by submitMove for time pressure)
+  useEffect(() => {
+    if (playerTimeRemainingRef) playerTimeRemainingRef.current = playerMs;
+  }, [playerMs, playerTimeRemainingRef]);
 
   return (
     <div className="flex flex-col gap-1 w-full">

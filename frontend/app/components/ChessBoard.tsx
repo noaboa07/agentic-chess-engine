@@ -7,6 +7,7 @@ import type { Square } from 'chess.js';
 import { useGame, type GameResult } from '../context/GameContext';
 import ChessClock from './ChessClock';
 import { playSfx, preloadSfx, type SfxName } from '../../lib/audio';
+import { getStoredThemeId, getThemeById } from '../../lib/themes';
 import GameOverModal from './GameOverModal';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
@@ -143,19 +144,22 @@ function drawArrow(
 interface ChessBoardProps {
   onChangeOpponent?: () => void;
   onGoHome?: () => void;
+  onViewReport?: () => void;
 }
 
-export default function ChessBoard({ onChangeOpponent, onGoHome }: ChessBoardProps = {}) {
+export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }: ChessBoardProps = {}) {
   const [game, setGame] = useState(new Chess());
   const [fen, setFen] = useState(game.fen());
   const [boardLocked, setBoardLocked] = useState(false);
   const [arrows, setArrows] = useState<ArrowTuple[]>([]);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
+  const [boardTheme] = useState(() => getThemeById(getStoredThemeId()));
 
   const engineTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const engineFirstMoveFiredRef = useRef(false);
   const preMovePositionsRef = useRef<string[]>([]);
   const arrowStartRef = useRef<Square | null>(null);
+  const playerTimeRemainingRef = useRef<number>(Infinity);
   const boardContainerRef = useRef<HTMLDivElement>(null);
   const canvasRef = useRef<HTMLCanvasElement>(null);
   const lastTakeBackTokenRef = useRef(0);
@@ -165,6 +169,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome }: ChessBoardPro
     boardResetToken, playerColor, flipPlayerColor,
     moveCount, activePersona, takeBack, takeBackToken, teachMode,
     currentOpening, startClock, timeControl, globalMuted, gameOverPending,
+    explainMove,
   } = useGame();
 
   const globalMutedRef = useRef(globalMuted);
@@ -210,7 +215,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome }: ChessBoardPro
     if (selectedSquare) {
       styles[selectedSquare] = { backgroundColor: 'rgba(255,255,0,0.25)' };
     }
-    for (const sq of legalTargets) {
+    for (const sq of Array.from(legalTargets)) {
       const occupied = !!game.get(sq);
       styles[sq] = occupied
         ? { background: 'radial-gradient(circle, transparent 58%, rgba(0,0,0,0.22) 58%)' }
@@ -316,7 +321,10 @@ export default function ChessBoard({ onChangeOpponent, onGoHome }: ChessBoardPro
       if (timeControl && timeControl.initialMs > 0) startClock(opponentColor);
 
       const moveUci = `${move.from}${move.to}${move.promotion ?? ''}`;
-      submitMove(prevFen, moveUci, move.san).then(result => {
+      const timeRemainingSecs = playerTimeRemainingRef.current === Infinity
+        ? null
+        : playerTimeRemainingRef.current / 1000;
+      submitMove(prevFen, moveUci, move.san, timeRemainingSecs).then(result => {
         if (gameCopy.isGameOver()) {
           const r = detectResult(gameCopy);
           setBoardLocked(false);
@@ -384,7 +392,17 @@ export default function ChessBoard({ onChangeOpponent, onGoHome }: ChessBoardPro
     const to = coordsToSquare(e.clientX - rect.left, e.clientY - rect.top, playerColor);
     arrowStartRef.current = null;
 
-    if (!to || to === from) return;
+    if (!to || to === from) {
+      // Right-click with no drag on a legal target dot → explain why not
+      if (teachMode && selectedSquare && from && legalTargets.has(from)) {
+        const piece = game.get(selectedSquare);
+        const isPromotion =
+          piece?.type === 'p' &&
+          ((piece.color === 'w' && from[1] === '8') || (piece.color === 'b' && from[1] === '1'));
+        void explainMove(game.fen(), `${selectedSquare}${from}${isPromotion ? 'q' : ''}`);
+      }
+      return;
+    }
 
     // Only draw arrows for legal moves from that square
     const legalDestinations = new Set(
@@ -396,7 +414,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome }: ChessBoardPro
       const exists = prev.findIndex(a => a[0] === from && a[1] === to);
       return exists >= 0 ? prev.filter((_, i) => i !== exists) : [...prev, [from, to]];
     });
-  }, [playerColor, game]);
+  }, [playerColor, game, teachMode, selectedSquare, legalTargets, explainMove]);
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button === 0 && arrows.length > 0) setArrows([]);
@@ -421,7 +439,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome }: ChessBoardPro
         </button>
       )}
 
-      <ChessClock onTimeout={handleTimeout}>
+      <ChessClock onTimeout={handleTimeout} playerTimeRemainingRef={playerTimeRemainingRef}>
         <div
           ref={boardContainerRef}
           className={`relative select-none transition-opacity duration-200 ${isLocked ? 'opacity-70' : 'opacity-100'}`}
@@ -441,6 +459,8 @@ export default function ChessBoard({ onChangeOpponent, onGoHome }: ChessBoardPro
             isDraggablePiece={({ piece }) => !isLocked && piece.startsWith(playerPiecePrefix)}
             areArrowsAllowed={false}
             customSquareStyles={customSquareStyles}
+            customDarkSquareStyle={{ backgroundColor: boardTheme.dark }}
+            customLightSquareStyle={{ backgroundColor: boardTheme.light }}
             customBoardStyle={{ borderRadius: '4px', boxShadow: glowStyle[intensity], transition: 'box-shadow 1s ease' }}
           />
           <canvas
@@ -456,6 +476,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome }: ChessBoardPro
               onRematch={handleRematch}
               onChangeOpponent={onChangeOpponent ?? (() => {})}
               onGoHome={onGoHome ?? (() => {})}
+              onViewReport={onViewReport}
             />
           )}
         </div>

@@ -2,8 +2,9 @@ import os
 import random
 import chess
 import chess.engine
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from pathlib import Path
+from personas.personas import StrategyProfile
 
 _BACKEND_DIR = Path(__file__).resolve().parent.parent
 _DEFAULT_SF_PATH = str(_BACKEND_DIR / "stockfish" / "stockfish-windows-x86-64-avx2.exe")
@@ -22,12 +23,17 @@ class MoveAnalysis:
     eval_delta: int
     is_blunder: bool
     classification: str
+    top_lines: list[dict] = field(default_factory=list)  # top MultiPV candidates pre-move
 
+
+_MATE_CP = 600  # Cap mate scores at ±600 cp for delta/CPL math.
+                # Prevents astronomical CPL when a player misses a forced mate.
+                # The eval display uses the raw score separately and still shows "M3" etc.
 
 def _score_to_cp(score: chess.engine.PovScore) -> int:
     white = score.white()
     if white.is_mate():
-        return 10000 if (white.mate() or 0) > 0 else -10000
+        return _MATE_CP if (white.mate() or 0) > 0 else -_MATE_CP
     return white.score() or 0
 
 
@@ -46,13 +52,22 @@ def _classify(cpl: int, delta: int) -> str:
     return "blunder"
 
 
-def _engine_reply(engine: chess.engine.SimpleEngine, board: chess.Board, target_elo: int) -> str:
+def _engine_reply(
+    engine: chess.engine.SimpleEngine,
+    board: chess.Board,
+    target_elo: int,
+    strategy: StrategyProfile | None = None,
+    time_remaining_secs: float | None = None,
+) -> str:
     """
-    Select an engine reply calibrated to target_elo.
+    Select an engine reply calibrated to target_elo, optionally shaped by a StrategyProfile.
 
     Below Stockfish's UCI_Elo floor (1320), we blend random legal moves with
     depth-1/skill-0 moves. The lower the Elo, the higher the random fraction.
     At 1320+, we hand off to UCI_LimitStrength which is properly calibrated.
+
+    When a StrategyProfile is provided, blunder_chance injects a sub-optimal MultiPV
+    candidate before the UCI path runs, making each agent play stylistically differently.
     """
     legal_moves = list(board.legal_moves)
     if not legal_moves:
@@ -62,6 +77,32 @@ def _engine_reply(engine: chess.engine.SimpleEngine, board: chess.Board, target_
         # Roomba (150), Clown (300), Tilted (500): zero engine evaluation — pure chaos.
         # Even depth=1 Stockfish sees Scholar's Mate threats; random moves don't.
         return random.choice(legal_moves).uci()
+
+    # Strategy-based blunder injection: pick a sub-optimal candidate from MultiPV lines.
+    # Runs before the UCI path so it applies to both the blended and calibrated zones.
+    if strategy is not None and strategy.blunder_chance > 0 and len(legal_moves) >= 2:
+        effective_chance = strategy.blunder_chance
+
+        if time_remaining_secs is not None and time_remaining_secs < 30:
+            effective_chance = min(1.0, effective_chance * strategy.time_pressure_multiplier)
+
+        # Endgame: agents with low endgame_skill blunder more in simplified positions
+        non_king_pieces = len(board.piece_map()) - 2
+        if non_king_pieces <= 10:
+            effective_chance = min(1.0, effective_chance + (1.0 - strategy.endgame_skill) * 0.12)
+
+        if random.random() < effective_chance:
+            depth = max(1, strategy.tactic_depth)
+            n_lines = min(len(legal_moves), max(2, depth))
+            try:
+                engine.configure({"UCI_LimitStrength": False, "Skill Level": 15})
+            except chess.engine.EngineError:
+                pass
+            infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=n_lines)
+            candidates = [info["pv"][0].uci() for info in infos if info.get("pv")]
+            if len(candidates) >= 2:
+                # Pick from the weaker lines — not the engine's top choice
+                return random.choice(candidates[1:])
 
     if target_elo < _UCI_ELO_MIN:
         # 601–1319 Elo: blend random with depth-1/skill-0 engine moves.
@@ -90,11 +131,16 @@ def _engine_reply(engine: chess.engine.SimpleEngine, board: chess.Board, target_
     return result.move.uci() if result.move else ""
 
 
-def get_engine_first_move(fen: str, target_elo: int) -> str:
+def get_engine_first_move(
+    fen: str,
+    target_elo: int,
+    strategy: StrategyProfile | None = None,
+    time_remaining_secs: float | None = None,
+) -> str:
     """Return the engine's opening move when the player is playing as black."""
     board = chess.Board(fen)
     with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
-        return _engine_reply(engine, board, target_elo)
+        return _engine_reply(engine, board, target_elo, strategy, time_remaining_secs)
 
 
 def analyze_move(
@@ -103,6 +149,8 @@ def analyze_move(
     skill_level: int = 20,
     play_depth: int = 15,
     target_elo: int = 2700,
+    strategy: StrategyProfile | None = None,
+    time_remaining_secs: float | None = None,
 ) -> MoveAnalysis:
     board = chess.Board(fen)
     move = chess.Move.from_uci(move_uci)
@@ -113,21 +161,38 @@ def analyze_move(
     moving_color = board.turn
 
     with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
-        info_before = engine.analyse(board, chess.engine.Limit(depth=DEPTH))
+        # Use MultiPV=3 to collect top candidate lines for the debate transcript.
+        # multipv > 1 always returns a list; index 0 is the engine's top choice.
+        infos_before = engine.analyse(board, chess.engine.Limit(depth=DEPTH), multipv=3)
+        info_before = infos_before[0] if isinstance(infos_before, list) else infos_before
         cp_before = _score_to_cp(info_before["score"])
 
         pv_before: list[chess.Move] = info_before.get("pv") or []
         best_move = pv_before[0].uci() if pv_before else ""
 
+        top_lines: list[dict] = []
+        for info in (infos_before if isinstance(infos_before, list) else [info_before]):
+            pv = info.get("pv") or []
+            if pv:
+                top_lines.append({"move": pv[0].uci(), "cp": _score_to_cp(info["score"])})
+
         board.push(move)
         fen_after = board.fen()
 
-        info_after = engine.analyse(board, chess.engine.Limit(depth=DEPTH))
-        cp_after = _score_to_cp(info_after["score"])
-
         engine_move = ""
-        if not board.is_game_over():
-            engine_move = _engine_reply(engine, board, target_elo)
+        info_after = None
+        if board.is_game_over():
+            # Don't call engine.analyse on a terminal position — Stockfish returns Mate(0)
+            # which is ambiguous (Python: `0 or 0 > 0` is False), causing wrong cp sign.
+            # Instead, assign cp_after directly: mating side gets +_MATE_CP, draw gets 0.
+            if board.is_checkmate():
+                cp_after = _MATE_CP if moving_color == chess.WHITE else -_MATE_CP
+            else:
+                cp_after = 0  # stalemate / insufficient material / etc.
+        else:
+            info_after = engine.analyse(board, chess.engine.Limit(depth=DEPTH))
+            cp_after = _score_to_cp(info_after["score"])
+            engine_move = _engine_reply(engine, board, target_elo, strategy, time_remaining_secs)
 
     delta = (cp_after - cp_before) if moving_color == chess.WHITE else -(cp_after - cp_before)
     cpl = max(0, -delta)
@@ -137,11 +202,16 @@ def analyze_move(
     if classification == "inaccuracy" and len(board.move_stack) <= 10:
         classification = "good"
 
-    final_score = info_after["score"].white()
-    if final_score.is_mate():
-        evaluation: dict[str, str | int] = {"type": "mate", "value": final_score.mate() or 0}
+    if info_after is None:
+        evaluation: dict[str, str | int] = (
+            {"type": "mate", "value": 0} if board.is_checkmate() else {"type": "cp", "value": 0}
+        )
     else:
-        evaluation = {"type": "cp", "value": final_score.score() or 0}
+        final_score = info_after["score"].white()
+        if final_score.is_mate():
+            evaluation = {"type": "mate", "value": final_score.mate() or 0}
+        else:
+            evaluation = {"type": "cp", "value": final_score.score() or 0}
 
     return MoveAnalysis(
         fen_after=fen_after,
@@ -151,4 +221,5 @@ def analyze_move(
         eval_delta=delta,
         is_blunder=classification in ("mistake", "blunder"),
         classification=classification,
+        top_lines=top_lines,
     )

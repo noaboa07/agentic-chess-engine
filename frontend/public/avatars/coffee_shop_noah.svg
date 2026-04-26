@@ -1,5 +1,29 @@
 <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 64 64">
-  <circle cx="32" cy="32" r="32" fill="#78350f"/>
-  <text x="32" y="38" font-family="serif" font-size="20" text-anchor="middle">☕</text>
-  <text x="32" y="54" font-family="sans-serif" font-size="9" fill="#fde68a" text-anchor="middle">1100 ELO</text>
+  <circle cx="32" cy="32" r="32" fill="#1c0e05"/>
+  <!-- Beanie hat -->
+  <ellipse cx="32" cy="19" rx="18" ry="11" fill="#7c3aed"/>
+  <rect x="14" y="21" width="36" height="5" rx="0" fill="#6d28d9"/>
+  <ellipse cx="32" cy="25" rx="18" ry="3" fill="#5b21b6"/>
+  <!-- Pompom on top -->
+  <circle cx="32" cy="12" r="4" fill="#a78bfa"/>
+  <!-- Face -->
+  <circle cx="32" cy="37" r="17" fill="#fde8c8"/>
+  <!-- Hipster round glasses -->
+  <circle cx="24" cy="33" r="5" fill="none" stroke="#1c0e05" stroke-width="1.8"/>
+  <circle cx="38" cy="33" r="5" fill="none" stroke="#1c0e05" stroke-width="1.8"/>
+  <line x1="29" y1="33" x2="33" y2="33" stroke="#1c0e05" stroke-width="1.5"/>
+  <line x1="19" y1="31" x2="16" y2="30" stroke="#1c0e05" stroke-width="1.5"/>
+  <line x1="43" y1="31" x2="46" y2="30" stroke="#1c0e05" stroke-width="1.5"/>
+  <!-- Eyes -->
+  <circle cx="24" cy="33" r="2" fill="#1c0e05"/>
+  <circle cx="38" cy="33" r="2" fill="#1c0e05"/>
+  <!-- Relaxed smile -->
+  <path d="M 25 42 Q 32 48 39 42" fill="none" stroke="#92400e" stroke-width="2" stroke-linecap="round"/>
+  <!-- Coffee steam (top right) -->
+  <path d="M 52 18 Q 50 13 52 9" fill="none" stroke="#d97706" stroke-width="1.5" stroke-linecap="round"/>
+  <path d="M 56 18 Q 58 13 56 9" fill="none" stroke="#d97706" stroke-width="1.5" stroke-linecap="round"/>
+  <!-- Coffee cup (top right) -->
+  <rect x="49" y="18" width="13" height="11" rx="2" fill="#92400e"/>
+  <rect x="49" y="18" width="13" height="3" rx="1" fill="#78350f"/>
+  <path d="M 62 21 Q 65 21 65 24 Q 65 27 62 27" fill="none" stroke="#78350f" stroke-width="1.5"/>
 </svg>

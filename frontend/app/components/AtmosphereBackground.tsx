@@ -41,6 +41,14 @@ export default function AtmosphereBackground({ children }: { children: ReactNode
       const audio = new Audio(getTrack(personaId, level));
       audio.loop = true;
       audio.volume = 0;
+      // Fall back to shared default tracks if persona-specific file is missing
+      audio.onerror = () => {
+        const fallback = `/audio/default/${level}.mp3`;
+        if (!audio.src.endsWith(fallback)) {
+          audio.src = fallback;
+          audio.load();
+        }
+      };
       audioMap.current.set(key, audio);
     }
     return audioMap.current.get(key)!;
@@ -125,8 +133,13 @@ export default function AtmosphereBackground({ children }: { children: ReactNode
   }, [globalMuted]);
 
   return (
-    <div className={`h-full transition-colors duration-1000 ${BG_CLASSES[intensity]}`}>
+    <div className={`h-full relative transition-colors duration-1000 ${BG_CLASSES[intensity]}`}>
       {children}
+      {/* Cinematic vignette — darkens edges, draws focus to the center board */}
+      <div
+        className="pointer-events-none absolute inset-0"
+        style={{ background: 'radial-gradient(ellipse at 50% 50%, transparent 35%, rgba(0,0,0,0.62) 100%)' }}
+      />
     </div>
   );
 }

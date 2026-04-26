@@ -7,6 +7,7 @@ import { useGame, type PersonaId, type TimeControl } from '../context/GameContex
 import LobbyScreen from '../components/LobbyScreen';
 import PersonaPanel from '../components/PersonaPanel';
 import CoachPanel from '../components/CoachPanel';
+import CoachReportModal from '../components/CoachReportModal';
 
 const ChessBoard = dynamic(() => import('../components/ChessBoard'), { ssr: false });
 
@@ -14,8 +15,9 @@ type Phase = 'lobby' | 'game';
 
 export default function PlayPage() {
   const [phase, setPhase] = useState<Phase>('lobby');
+  const [showReport, setShowReport] = useState(false);
   const router = useRouter();
-  const { setPersona, setTimeControl, setTeachMode } = useGame();
+  const { setPersona, setTimeControl, setTeachMode, coachReport, dismissCoachReport } = useGame();
 
   const handleStartGame = useCallback((
     personaId: PersonaId,
@@ -36,6 +38,13 @@ export default function PlayPage() {
     router.push('/');
   }, [router]);
 
+  const handleViewReport = useCallback(() => setShowReport(true), []);
+
+  const handleCloseReport = useCallback(() => {
+    setShowReport(false);
+    dismissCoachReport();
+  }, [dismissCoachReport]);
+
   if (phase === 'lobby') {
     return (
       <div className="h-full overflow-y-auto">
@@ -45,19 +54,25 @@ export default function PlayPage() {
   }
 
   return (
-    <main className="h-full w-full flex items-stretch">
-      {/* Left column: persona bar + board */}
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 min-w-0">
-        <PersonaPanel />
-        <ChessBoard
-          onChangeOpponent={handleBackToLobby}
-          onGoHome={handleGoHome}
-        />
-      </div>
-      {/* Right column: coach panel */}
-      <div className="w-[340px] flex-shrink-0 flex flex-col p-4">
-        <CoachPanel onLeaveGame={handleBackToLobby} />
-      </div>
-    </main>
+    <>
+      <main className="h-full w-full flex items-stretch">
+        {/* Left column: persona bar + board */}
+        <div className="flex flex-1 flex-col items-center justify-center gap-3 p-8 min-w-0">
+          <PersonaPanel />
+          <ChessBoard
+            onChangeOpponent={handleBackToLobby}
+            onGoHome={handleGoHome}
+            onViewReport={handleViewReport}
+          />
+        </div>
+        {/* Right column: coach panel */}
+        <div className="w-[340px] flex-shrink-0 flex flex-col p-4">
+          <CoachPanel onLeaveGame={handleBackToLobby} />
+        </div>
+      </main>
+      {showReport && coachReport && (
+        <CoachReportModal report={coachReport} onClose={handleCloseReport} />
+      )}
+    </>
   );
 }

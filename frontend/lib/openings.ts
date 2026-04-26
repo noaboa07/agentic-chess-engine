@@ -11,3 +11,10 @@ export function detectOpening(fen: string): string | null {
   const epd = fenToEpd(fen);
   return eco[epd]?.name ?? null;
 }
+
+export function detectOpeningFull(fen: string): string | null {
+  const epd = fenToEpd(fen);
+  const entry = eco[epd];
+  if (!entry) return null;
+  return entry.code ? `${entry.code} · ${entry.name}` : entry.name;
+}

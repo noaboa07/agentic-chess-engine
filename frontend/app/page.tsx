@@ -28,6 +28,12 @@ export default function LandingPage() {
         >
           Shop
         </Link>
+        <Link
+          href="/profile"
+          className="rounded-xl border border-white/10 bg-zinc-900 px-8 py-3 text-center text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+        >
+          Profile
+        </Link>
       </div>
       <LogoutButton />
     </main>
