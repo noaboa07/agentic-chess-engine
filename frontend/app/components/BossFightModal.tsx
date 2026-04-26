@@ -17,6 +17,22 @@ interface BossFightModalProps {
   onClose: () => void;
 }
 
+const BOSS_TAUNT: Record<PersonaId, string> = {
+  roomba_noah:             "I bump into pieces randomly. You'll still find a way to lose.",
+  clown_noah:              "Chaos is my strategy. Good luck preparing for nothing.",
+  tilted_noah:             "I attack on move one. Your king is already nervous.",
+  sleep_deprived_noah:     "I'm running on three hours of sleep. Still better than you.",
+  gym_bro_noah:            "Every piece I have is a weapon. Watch your back rank.",
+  coffee_shop_noah:        "I'll squeeze your position until you can't breathe.",
+  tech_bro_noah:           "I optimize. You improvise. We both know how this ends.",
+  rat_main_noah:           "Get to the endgame. I'll be waiting.",
+  grandmaster_twitch_noah: "Chat already called your blunder. I'm just here to confirm it.",
+  gpa_noah:                "I memorized your line deeper than you did.",
+  devil_noah:              "One piece sacrifice. That's all it takes.",
+  angel_noah:              "You'll exhaust yourself trying to crack me open.",
+  god_noah:                "There is no move you can make that I have not already calculated.",
+};
+
 export default function BossFightModal({ personaId, info, onClose }: BossFightModalProps) {
   const router = useRouter();
 
@@ -35,6 +51,7 @@ export default function BossFightModal({ personaId, info, onClose }: BossFightMo
           <p className="text-[10px] text-indigo-400 uppercase tracking-widest mb-1">Boss Fight</p>
           <h2 className="text-xl font-bold text-white">{info.name}</h2>
           <p className="text-xs text-zinc-500 mt-0.5">{info.elo} Elo</p>
+          <p className="text-sm italic text-zinc-400 mt-2">"{BOSS_TAUNT[personaId]}"</p>
         </div>
 
         {/* Details */}

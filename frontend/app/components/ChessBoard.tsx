@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useCallback, useEffect, useRef, useMemo } from 'react';
+import { useRouter } from 'next/navigation';
 import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import type { Square } from 'chess.js';
@@ -10,6 +11,7 @@ import { useAchievements } from '../context/AchievementContext';
 import ChessClock from './ChessClock';
 import { playSfx, preloadSfx, type SfxName } from '../../lib/audio';
 import { getStoredThemeId, getThemeById } from '../../lib/themes';
+import { getSettings } from '../../lib/settings';
 import GameOverModal from './GameOverModal';
 import BlunderConfirmModal from './BlunderConfirmModal';
 import OpeningExplorerModal from './OpeningExplorerModal';
@@ -154,12 +156,14 @@ interface ChessBoardProps {
 }
 
 export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }: ChessBoardProps = {}) {
+  const router = useRouter();
   const [game, setGame] = useState(new Chess());
   const [fen, setFen] = useState(game.fen());
   const [boardLocked, setBoardLocked] = useState(false);
   const [arrows, setArrows] = useState<ArrowTuple[]>([]);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [boardTheme] = useState(() => getThemeById(getStoredThemeId()));
+  const [settings] = useState(() => getSettings());
   const [openingModalOpen, setOpeningModalOpen] = useState(false);
 
   interface PendingMove {
@@ -236,14 +240,16 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
     if (selectedSquare) {
       styles[selectedSquare] = { backgroundColor: 'rgba(255,255,0,0.25)' };
     }
-    for (const sq of Array.from(legalTargets)) {
-      const occupied = !!game.get(sq);
-      styles[sq] = occupied
-        ? { background: 'radial-gradient(circle, transparent 58%, rgba(0,0,0,0.22) 58%)' }
-        : { background: 'radial-gradient(circle, rgba(0,0,0,0.22) 27%, transparent 27%)' };
+    if (settings.showLegalMoves) {
+      for (const sq of Array.from(legalTargets)) {
+        const occupied = !!game.get(sq);
+        styles[sq] = occupied
+          ? { background: 'radial-gradient(circle, transparent 58%, rgba(0,0,0,0.22) 58%)' }
+          : { background: 'radial-gradient(circle, rgba(0,0,0,0.22) 27%, transparent 27%)' };
+      }
     }
     return styles;
-  }, [selectedSquare, legalTargets, game]);
+  }, [selectedSquare, legalTargets, game, settings.showLegalMoves]);
 
   // Play game-over sound whenever a new game-over is signalled
   useEffect(() => {
@@ -258,8 +264,10 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
     const ctx = canvas.getContext('2d');
     if (!ctx) return;
     ctx.clearRect(0, 0, BOARD_WIDTH, BOARD_WIDTH);
-    for (const [from, to] of arrows) drawArrow(ctx, from, to, playerColor);
-  }, [arrows, playerColor]);
+    if (settings.showArrows) {
+      for (const [from, to] of arrows) drawArrow(ctx, from, to, playerColor);
+    }
+  }, [arrows, playerColor, settings.showArrows]);
 
   // Reset board on new game
   useEffect(() => {
@@ -398,7 +406,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
           .then(result => applyEngineReply(result, gameCopy));
       };
 
-      if (teachMode) {
+      if (teachMode && settings.blunderConfirmMode !== 'off') {
         void fetch(`${BACKEND_URL}/api/evaluate-premove`, {
           method: 'POST',
           headers: { 'Content-Type': 'application/json' },
@@ -406,7 +414,8 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
         })
           .then(r => r.ok ? r.json() : null)
           .then((data: { cpl: number; best_move: string; warning: boolean } | null) => {
-            if (data?.warning) {
+            const threshold = settings.blunderConfirmMode === 'mistakes' ? 40 : 100;
+            if (data && data.cpl > threshold) {
               setBoardLocked(false);
               setPendingMove({ prevFen, gameCopy, moveUci, san: move.san, cpl: data.cpl, bestMove: data.best_move, timeRemainingSecs });
             } else {
@@ -420,7 +429,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
 
       return true;
     },
-    [game, submitMove, applyEngineReply, boardLocked, isAnalyzing, playerColor, timeControl, startClock, globalMuted, teachMode],
+    [game, submitMove, applyEngineReply, boardLocked, isAnalyzing, playerColor, timeControl, startClock, globalMuted, teachMode, settings],
   );
 
   const isLocked = boardLocked || isAnalyzing;
@@ -468,6 +477,8 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
       return;
     }
 
+    if (!settings.showArrows) return;
+
     // Only draw arrows for legal moves from that square
     const legalDestinations = new Set(
       game.moves({ square: from, verbose: true }).map(m => m.to as Square)
@@ -478,7 +489,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
       const exists = prev.findIndex(a => a[0] === from && a[1] === to);
       return exists >= 0 ? prev.filter((_, i) => i !== exists) : [...prev, [from, to]];
     });
-  }, [playerColor, game, teachMode, selectedSquare, legalTargets, explainMove]);
+  }, [playerColor, game, teachMode, selectedSquare, legalTargets, explainMove, settings.showArrows]);
 
   const handleClick = useCallback((e: React.MouseEvent<HTMLDivElement>) => {
     if (e.button === 0 && arrows.length > 0) setArrows([]);
@@ -550,6 +561,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
               onChangeOpponent={onChangeOpponent ?? (() => {})}
               onGoHome={onGoHome ?? (() => {})}
               onViewReport={onViewReport}
+              onViewReplay={() => router.push('/profile')}
             />
           )}
         </div>

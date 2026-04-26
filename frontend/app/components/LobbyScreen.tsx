@@ -2,6 +2,7 @@
 
 import { useState } from 'react';
 import { PERSONAS, TIME_CONTROLS, type PersonaId, type TimeControl } from '../context/GameContext';
+import { getSettings } from '../../lib/settings';
 
 interface Props {
   onStartGame: (personaId: PersonaId, timeControl: TimeControl | null, teachMode: boolean) => void;
@@ -10,8 +11,11 @@ interface Props {
 
 export default function LobbyScreen({ onStartGame, onBack }: Props) {
   const [selectedPersona, setSelectedPersona] = useState<PersonaId>('clown_noah');
-  const [selectedTC, setSelectedTC] = useState<TimeControl | null>(null);
-  const [teachMode, setTeachMode] = useState(false);
+  const [selectedTC, setSelectedTC] = useState<TimeControl | null>(() => {
+    const { defaultTimeControlId } = getSettings();
+    return TIME_CONTROLS.find(tc => tc.label.toLowerCase() === defaultTimeControlId) ?? null;
+  });
+  const [teachMode, setTeachMode] = useState(() => getSettings().defaultTeachMode);
 
   return (
     <div className="min-h-full flex flex-col items-center py-16 px-8 gap-10">

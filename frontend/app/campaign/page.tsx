@@ -169,7 +169,7 @@ export default function CampaignPage() {
                               ? 'border-zinc-800 bg-zinc-900/40 opacity-60'
                               : status === 'complete'
                               ? 'border-emerald-800/50 bg-emerald-950/20'
-                              : 'border-indigo-800/50 bg-zinc-900'
+                              : 'border-indigo-500/40 bg-zinc-900 ring-1 ring-indigo-500/30 shadow-[0_0_16px_rgba(99,102,241,0.2)] animate-pulse'
                           }`}
                         >
                           <div className="flex items-center gap-4">

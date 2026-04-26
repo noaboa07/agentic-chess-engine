@@ -103,7 +103,7 @@ A linear unlock ladder lets you climb through all 13 personas with structured le
 | opening_student | Opening Student | Bronze | Open the Opening Explorer |
 | coachable | Coachable | Silver | Request "Explain last move" 5 times |
 
-When a new achievement is unlocked, an `AchievementToast` slides in from the bottom-right with the icon, tier badge, title, and description. It auto-dismisses after 4 seconds. Guest users (null `userId`) are silently skipped.
+When a new achievement is unlocked, an `AchievementToast` slides in from the bottom-right with the achievement icon, tier badge, title, and description ("how you earned it"). Each toast has a **tier-based glow** (`box-shadow`) — bronze amber, silver slate, gold yellow, platinum violet — plus CSS keyframe entry (`slideUpFadeIn`) and exit (`slideDownFadeOut`) animations. Clicking the toast navigates to `/profile` (with an exit animation before push). The dismiss `×` stops propagation. A progress bar drains over 4.2 seconds then auto-dismisses. `notify.mp3` plays on unlock (respects the achievementSoundEnabled setting). Guest users (null `userId`) are silently skipped.
 
 The **Profile** page shows the full 5×3 achievement grid — earned badges are fully colored with tier label; locked badges are dimmed to 30% opacity.
 
@@ -359,6 +359,58 @@ A singleton `AudioManager` preloads 13 sound effects on mount. Check priority: c
 ### 🎓 Onboarding Tutorial
 
 First-time visitors to `/play` see a 5-step spotlight tutorial explaining the persona system, Teach Mode, blunder protection, and the Dashboard. Stored in `localStorage` — never shown again after completion. Dismissable at any step.
+
+---
+
+### ⚙️ Settings & UX Preferences
+
+A `lib/settings.ts` module provides a typed localStorage-backed settings store. The `AppSettings` interface covers nine fields:
+
+| Setting | Type | Default | Effect |
+|---|---|---|---|
+| `showLegalMoves` | boolean | true | Toggle legal-move dot highlights on the board |
+| `showArrows` | boolean | true | Toggle right-click candidate arrows on canvas |
+| `autoQueenPromotion` | boolean | true | Skip promotion picker, always queen |
+| `blunderConfirmMode` | `'off' \| 'blunders' \| 'mistakes'` | `'blunders'` | Pre-move warning threshold |
+| `defaultTeachMode` | boolean | false | Pre-check Teach Mode in the lobby |
+| `defaultTimeControlId` | string | `'untimed'` | Pre-select time control in the lobby |
+| `confirmResign` | boolean | true | Confirm dialog before resign |
+| `achievementSoundEnabled` | boolean | true | Play `notify.mp3` on achievement unlock |
+| `reducedMotion` | boolean | false | Disable glow pulses and non-essential animations |
+
+Exports: `getSettings()` (merge DEFAULTS with localStorage), `setSetting<K>()` (patch one key), `useSettings()` (reactive hook for the Settings page).
+
+The **Settings page** (`/settings`) is divided into four sections:
+- **Board & Visuals** — all four board behavior toggles + the board theme picker
+- **Audio** — achievement sound toggle (in-game volume is controlled by the mute button in the coach panel)
+- **Coaching** — default Teach Mode toggle + blunder confirmation radio group (`Off / Blunders only ≥ CPL 100 / Mistakes & Blunders ≥ CPL 40`)
+- **Gameplay** — confirm-resign toggle + default time control pill selector + reset-all button
+
+**Configurable blunder warning:** `'off'` skips the `/api/evaluate-premove` fetch entirely; `'blunders'` triggers at CPL ≥ 100 (original behavior); `'mistakes'` triggers at CPL ≥ 40.
+
+**LobbyScreen defaults:** `teachMode` and `selectedTC` initialize from `getSettings()` so the lobby pre-selects whatever the user saved.
+
+---
+
+### 🗺 Campaign UX Polish
+
+**Boss intro taunts:** The `BossFightModal` shows a per-persona italic taunt line below the Elo rating — e.g., *"There is no move you can make that I have not already calculated."* for God Noah. One line per persona, all 13 covered.
+
+**Available-boss glow:** Unlocked, not-yet-beaten persona cards animate with `ring-1 ring-indigo-500/30 shadow-[0_0_16px_rgba(99,102,241,0.2)] animate-pulse` to draw the eye to the next target.
+
+---
+
+### 📼 Replay Enhancements
+
+**Keyboard navigation:** `ArrowLeft` / `ArrowRight` step through moves; `Space` toggles auto-play. All wired via a `useEffect` keydown listener with `e.preventDefault()` on Space to suppress page scroll.
+
+**Quick Review mode ("⚠ Mistakes"):** A toggle button filters the move list to mistakes and blunders only, shows a "Mistake X / Y" counter instead of "Move X / Y", and makes the Prev/Next buttons jump between filtered indices rather than stepping through every move.
+
+---
+
+### 🏁 GameOverModal Polish
+
+Result icons prefix the headline: 🏆 win, 💀 loss, 🤝 draw, 🏳 resigned. Headline upgraded to `text-6xl font-black tracking-tighter`. Button stack is full-width. A "Review Game →" text link navigates to `/profile` (with exit animation) so the player can immediately step through their game.
 
 ---
 
@@ -697,13 +749,13 @@ agentic-chess-engine/
     │   ├── puzzles/page.tsx           # Blunder puzzle feed
     │   ├── replay/[gameId]/page.tsx   # Move-by-move game replay viewer
     │   ├── profile/page.tsx           # Stats, bosses defeated, achievements grid, history
-    │   ├── settings/page.tsx          # Board theme picker
+    │   ├── settings/page.tsx          # 4-section settings panel (Board & Visuals, Audio, Coaching, Gameplay)
     │   ├── shop/page.tsx              # Elo-gated theme gallery
     │   ├── components/
-    │   │   ├── ChessBoard.tsx         # Board, arrows, premove blunder check, opening explorer
+    │   │   ├── ChessBoard.tsx         # Board, arrows, premove blunder check, opening explorer, settings wiring
     │   │   ├── CoachPanel.tsx         # Coaching, eval, debate, explain, guest banner
-    │   │   ├── AchievementToast.tsx   # Slide-in achievement unlock notification
-    │   │   ├── BossFightModal.tsx     # Pre-fight briefing modal for campaign bosses
+    │   │   ├── AchievementToast.tsx   # Tier-glow slide-in toast; clickable → /profile; notify.mp3 SFX
+    │   │   ├── BossFightModal.tsx     # Pre-fight briefing + per-persona intro taunt
     │   │   ├── BlunderConfirmModal.tsx # Pre-move blunder warning dialog
     │   │   ├── EmptyState.tsx         # Reusable empty-state with icon + CTA
     │   │   ├── Toast.tsx              # Dismissible error/info/success toast
@@ -712,16 +764,20 @@ agentic-chess-engine/
     │   │   ├── OpeningExplorerModal.tsx # Static opening reference modal
     │   │   ├── DebatePanel.tsx        # Collapsible 3-agent debate
     │   │   ├── LobbyScreen.tsx        # Persona cards, time controls
-    │   │   ├── GameOverModal.tsx      # Result + adaptive suggestion
+    │   │   ├── GameOverModal.tsx      # Result icons, polished hierarchy, Review Game → /profile
     │   │   ├── ChessClock.tsx         # Countdown with increment
     │   │   ├── WeaknessPanel.tsx      # Recurring mistake tracker
-    │   │   └── AtmosphereBackground.tsx # Crossfade music + vignette
+    │   │   ├── AtmosphereBackground.tsx # Crossfade music + vignette
+    │   │   └── landing/
+    │   │       ├── ChessBoardHero.tsx # Terminal-style engine output panel (hero right column)
+    │   │       └── PersonaLadder.tsx  # 13-persona roster strip with avatars + Elo
     │   └── context/
     │       ├── GameContext.tsx        # Full game state + campaign + puzzles + rate-limit error
     │       ├── AuthContext.tsx        # Supabase auth gate
     │       └── AchievementContext.tsx # Achievement unlock + toast coordination
     └── lib/
         ├── achievements.ts            # 15 achievement definitions, TIER_COLORS, TIER_BG
+        ├── settings.ts                # Typed settings module: AppSettings, getSettings, setSetting, useSettings
         ├── themes.ts                  # 10 board themes, localStorage
         ├── db.ts                      # All Supabase queries (RLS-enforced)
         ├── audio.ts                   # SFX singleton manager

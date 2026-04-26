@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback } from 'react';
+import { useEffect, useState, useCallback, useMemo } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Chessboard } from 'react-chessboard';
@@ -32,6 +32,7 @@ export default function ReplayPage() {
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const [reviewMode, setReviewMode] = useState(false);
   const { user } = useAuth();
   const { awardAchievement } = useAchievements();
 
@@ -63,6 +64,21 @@ export default function ReplayPage() {
   const next = useCallback(() => {
     setCurrentIndex(i => game ? Math.min(game.moves.length - 1, i + 1) : i);
   }, [game]);
+
+  const filteredIndices = useMemo(
+    () => game?.moves.map((_, i) => i).filter(i => ['mistake', 'blunder'].includes(game.moves[i].classification)) ?? [],
+    [game],
+  );
+
+  useEffect(() => {
+    const handler = (e: KeyboardEvent) => {
+      if (e.key === 'ArrowRight') { e.preventDefault(); next(); }
+      else if (e.key === 'ArrowLeft') { e.preventDefault(); prev(); }
+      else if (e.key === ' ') { e.preventDefault(); setIsAutoPlaying(p => !p); }
+    };
+    window.addEventListener('keydown', handler);
+    return () => window.removeEventListener('keydown', handler);
+  }, [next, prev]);
 
   if (loading) {
     return (
@@ -124,7 +140,15 @@ export default function ReplayPage() {
                 ⏮
               </button>
               <button
-                onClick={prev}
+                onClick={() => {
+                  setIsAutoPlaying(false);
+                  if (reviewMode) {
+                    const prevIdx = [...filteredIndices].reverse().find(i => i < currentIndex);
+                    if (prevIdx !== undefined) setCurrentIndex(prevIdx);
+                  } else {
+                    prev();
+                  }
+                }}
                 className="rounded bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-700 transition-colors"
               >
                 ← Prev
@@ -140,7 +164,14 @@ export default function ReplayPage() {
                 {isAutoPlaying ? '⏸ Pause' : '▶ Play'}
               </button>
               <button
-                onClick={next}
+                onClick={() => {
+                  if (reviewMode) {
+                    const nextIdx = filteredIndices.find(i => i > currentIndex);
+                    if (nextIdx !== undefined) setCurrentIndex(nextIdx);
+                  } else {
+                    next();
+                  }
+                }}
                 className="rounded bg-zinc-800 px-3 py-1.5 text-xs font-medium text-zinc-300 hover:bg-zinc-700 transition-colors"
               >
                 Next →
@@ -152,9 +183,23 @@ export default function ReplayPage() {
               >
                 ⏭
               </button>
+              <button
+                onClick={() => setReviewMode(m => !m)}
+                className={`rounded px-2.5 py-1.5 text-xs font-medium transition-colors ${
+                  reviewMode
+                    ? 'bg-amber-600/30 text-amber-300 border border-amber-600/40'
+                    : 'bg-zinc-800 text-zinc-400 hover:bg-zinc-700'
+                }`}
+                title="Mistakes Only"
+              >
+                ⚠ Mistakes
+              </button>
             </div>
             <p className="text-xs text-zinc-600">
-              Move {Math.max(0, currentIndex + 1)} / {game.moves.length}
+              {reviewMode
+                ? `Mistake ${filteredIndices.indexOf(currentIndex) + 1} / ${filteredIndices.length}`
+                : `Move ${Math.max(0, currentIndex + 1)} / ${game.moves.length}`
+              }
             </p>
           </div>
 
@@ -189,7 +234,10 @@ export default function ReplayPage() {
 
             {/* Move list */}
             <div className="rounded-xl border border-zinc-800 overflow-y-auto max-h-80 flex-1">
-              {game.moves.map((m, i) => (
+              {(reviewMode
+                ? filteredIndices.map(i => ({ m: game.moves[i], i }))
+                : game.moves.map((m, i) => ({ m, i }))
+              ).map(({ m, i }) => (
                 <button
                   key={i}
                   onClick={() => { setIsAutoPlaying(false); setCurrentIndex(i); }}

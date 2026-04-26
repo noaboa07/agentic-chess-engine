@@ -3,6 +3,8 @@
 import { createContext, useCallback, useContext, useState } from 'react';
 import { ACHIEVEMENT_MAP, type Achievement } from '../../lib/achievements';
 import { unlockAchievement } from '../../lib/db';
+import { getSettings } from '../../lib/settings';
+import { playSfx } from '../../lib/audio';
 import AchievementToast from '../components/AchievementToast';
 
 interface AchievementContextValue {
@@ -18,7 +20,7 @@ export function useAchievements(): AchievementContextValue {
 }
 
 export function AchievementProvider({ children }: { children: React.ReactNode }) {
-  const [pending, setPending] = useState<Achievement | null>(null);
+  const [queue, setQueue] = useState<Achievement[]>([]);
 
   const awardAchievement = useCallback(async (
     userId: string | null,
@@ -30,19 +32,27 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
     if (!achievement) return;
     try {
       const isNew = await unlockAchievement(userId, achievementId, metadata);
-      if (isNew) setPending(achievement);
+      if (isNew) {
+        const { achievementSoundEnabled } = getSettings();
+        playSfx('notify', !achievementSoundEnabled);
+        setQueue(q => [...q, achievement]);
+      }
     } catch {
       // Achievement unlock is non-fatal
     }
   }, []);
 
+  const handleDismiss = useCallback(() => {
+    setQueue(q => q.slice(1));
+  }, []);
+
   return (
     <AchievementContext.Provider value={{ awardAchievement }}>
       {children}
-      {pending && (
+      {queue[0] && (
         <AchievementToast
-          achievement={pending}
-          onDismiss={() => setPending(null)}
+          achievement={queue[0]}
+          onDismiss={handleDismiss}
         />
       )}
     </AchievementContext.Provider>
