@@ -305,10 +305,13 @@ export default function LandingPage() {
           <div>
             <p className="font-mono text-[10px] text-ink-tertiary uppercase tracking-widest mb-3">Product</p>
             <div className="flex flex-col gap-2">
-              <Link href="/campaign" className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Campaign</Link>
-              <Link href="/demo"     className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Demo</Link>
-              <Link href="/play"     className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Quick Play</Link>
-              <Link href="/settings" className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Settings</Link>
+              <Link href="/campaign"  className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Campaign</Link>
+              <Link href="/play"      className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Free Play</Link>
+              <Link href="/dashboard" className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Dashboard</Link>
+              <Link href="/puzzles"   className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Puzzles</Link>
+              <Link href="/shop"      className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Shop</Link>
+              <Link href="/profile"   className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Profile</Link>
+              <Link href="/demo"      className="text-sm text-ink-secondary hover:text-ink-primary transition-colors">Demo</Link>
             </div>
           </div>
           <div>
