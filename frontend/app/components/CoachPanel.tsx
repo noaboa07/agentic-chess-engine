@@ -64,12 +64,13 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
   const [status, setStatus] = useState<BackendStatus>('checking');
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
-  const { signOut } = useAuth();
+  const { signOut, user } = useAuth();
   const {
     evaluation, lastClassification, bestMove, coachMessage,
     isAnalyzing, teachMode, lastMoveContext, requestHint,
     globalMuted, setGlobalMuted, moveCount, resignGame,
     explainMessage, isExplaining,
+    lastEngineMoveUci, opponentExplanation, isExplainingOpponent, explainOpponentMove,
   } = useGame();
 
   // TTS playback — gated by teach mode and global mute
@@ -171,6 +172,13 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
         </div>
       </div>
 
+      {/* Guest banner */}
+      {!user && (
+        <div className="mb-3 rounded-lg bg-amber-900/30 border border-amber-700/30 px-3 py-2 text-xs text-amber-300">
+          Playing as guest — sign in to save your Elo and history.
+        </div>
+      )}
+
       {/* Leave game */}
       {onLeaveGame && (
         <button
@@ -219,6 +227,25 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
             >
               Explain last move
             </button>
+          )}
+          {teachMode && lastEngineMoveUci && (
+            <button
+              onClick={() => void explainOpponentMove()}
+              disabled={isExplainingOpponent}
+              className="mt-1 w-full rounded-md bg-zinc-700 px-4 py-2 text-xs font-medium text-indigo-300 hover:bg-zinc-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
+            >
+              {isExplainingOpponent ? 'Thinking…' : 'Why did AI play that?'}
+            </button>
+          )}
+          {teachMode && (isExplainingOpponent || opponentExplanation) && (
+            <div className="rounded-md border border-indigo-500/25 bg-indigo-950/40 px-4 py-3">
+              <p className="text-[10px] text-indigo-400 uppercase tracking-wide mb-1.5">Opponent Explains</p>
+              {isExplainingOpponent ? (
+                <p className="text-xs text-zinc-400 animate-pulse">Generating explanation…</p>
+              ) : (
+                <p className="text-xs text-zinc-200 leading-relaxed">{opponentExplanation}</p>
+              )}
+            </div>
           )}
           {teachMode && (isExplaining || explainMessage) && (
             <div className="rounded-md border border-sky-500/25 bg-sky-950/40 px-4 py-3">

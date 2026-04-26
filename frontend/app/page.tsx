@@ -16,6 +16,30 @@ export default function LandingPage() {
         >
           Play
         </Link>
+        <p className="text-center text-[11px] text-zinc-600 -mt-1">
+          No account?{' '}
+          <Link href="/play" className="text-zinc-500 hover:text-zinc-300 transition-colors underline underline-offset-2">
+            Play as guest
+          </Link>
+        </p>
+        <Link
+          href="/campaign"
+          className="rounded-xl bg-amber-600/80 px-8 py-3 text-center text-sm font-bold text-white hover:bg-amber-600 transition-colors"
+        >
+          Campaign
+        </Link>
+        <Link
+          href="/dashboard"
+          className="rounded-xl border border-white/10 bg-zinc-900 px-8 py-3 text-center text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+        >
+          Dashboard
+        </Link>
+        <Link
+          href="/puzzles"
+          className="rounded-xl border border-white/10 bg-zinc-900 px-8 py-3 text-center text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"
+        >
+          Puzzles
+        </Link>
         <Link
           href="/settings"
           className="rounded-xl border border-white/10 bg-zinc-900 px-8 py-3 text-center text-sm font-medium text-zinc-300 hover:bg-zinc-800 transition-colors"

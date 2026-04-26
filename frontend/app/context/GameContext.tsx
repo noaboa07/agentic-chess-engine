@@ -2,7 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
-import { saveGame, saveCoachReport, getModeElo, getModeGameCount, updateModeElo, getUserBlunderPatterns, getRecentGames, type EloMode, type CoachReportData, type RecentGame } from '../../lib/db';
+import { saveGame, saveCoachReport, getModeElo, getModeGameCount, updateModeElo, updateGameEloAfter, getUserBlunderPatterns, getRecentGames, savePuzzles, type EloMode, type CoachReportData, type RecentGame } from '../../lib/db';
 import { detectOpeningFull } from '../../lib/openings';
 
 export type MoveClassification = 'brilliant' | 'great' | 'good' | 'inaccuracy' | 'mistake' | 'blunder';
@@ -13,6 +13,10 @@ export interface MoveRecord {
   san: string;
   cpl: number;
   classification: MoveClassification;
+  bestMove: string | null;
+  evaluation: number | null;
+  coachMessage: string | null;
+  debateTranscript: DebateEntry[] | null;
 }
 
 export interface Evaluation {
@@ -175,6 +179,10 @@ interface GameState {
   debateTranscript: DebateEntry[] | null;
   explainMessage: string | null;
   isExplaining: boolean;
+  lastEngineMoveUci: string | null;
+  fenBeforeEngineMove: string | null;
+  opponentExplanation: string | null;
+  isExplainingOpponent: boolean;
 }
 
 const randomColor = (): PlayerColor => (Math.random() < 0.5 ? 'white' : 'black');
@@ -199,6 +207,10 @@ const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' 
   debateTranscript: null,
   explainMessage: null,
   isExplaining: false,
+  lastEngineMoveUci: null,
+  fenBeforeEngineMove: null,
+  opponentExplanation: null,
+  isExplainingOpponent: false,
 };
 
 export interface SubmitMoveResult {
@@ -224,6 +236,7 @@ interface GameContextValue extends GameState {
   dismissCoachReport: () => void;
   adaptiveSuggestion: AdaptiveSuggestion | null;
   explainMove: (fen: string, candidateUci: string) => Promise<void>;
+  explainOpponentMove: () => Promise<void>;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -355,7 +368,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const data: ApiMoveResponse = await res.json();
 
       const cpl = Math.max(0, -data.eval_delta);
-      const record: MoveRecord = { fen, san, cpl, classification: data.classification };
+      const evalCp = data.evaluation.type === 'cp'
+        ? data.evaluation.value
+        : (data.evaluation.value > 0 ? 600 : -600);
+      const record: MoveRecord = {
+        fen,
+        san,
+        cpl,
+        classification: data.classification,
+        bestMove: data.best_move || null,
+        evaluation: evalCp,
+        coachMessage: data.coach_message ?? null,
+        debateTranscript: data.debate_transcript ?? null,
+      };
 
       setState(prev => ({
         ...prev,
@@ -369,6 +394,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
         currentOpening: detectOpeningFull(data.fen_after) ?? prev.currentOpening,
         debateTranscript: data.debate_transcript ?? null,
         explainMessage: null,
+        lastEngineMoveUci: data.engine_move || null,
+        fenBeforeEngineMove: data.engine_move ? data.fen_after : null,
+        opponentExplanation: null,
       }));
       return { engineMove: data.engine_move || null };
     } catch (err) {
@@ -422,7 +450,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       const persona = PERSONAS.find(p => p.id === personaId)!;
       const mode = (tc?.label ?? 'Untimed') as EloMode;
       try {
-        await saveGame(user.id, {
+        const gameId = await saveGame(user.id, {
           opponent_id: personaId,
           opponent_skill: persona.skillLevel,
           result: gameOverPending.result,
@@ -445,8 +473,20 @@ export function GameProvider({ children }: { children: ReactNode }) {
         });
         if (eloRes.ok) {
           const { new_elo } = await eloRes.json() as { new_elo: number };
-          await updateModeElo(user.id, mode, new_elo, gamesPlayed + 1);
+          await Promise.all([
+            updateModeElo(user.id, mode, new_elo, gamesPlayed + 1),
+            updateGameEloAfter(gameId, new_elo),
+          ]);
         }
+        const puzzles = moveLog
+          .filter(m => (m.classification === 'blunder' || m.classification === 'mistake') && m.bestMove)
+          .map(m => ({
+            fen: m.fen,
+            correct_move: m.bestMove!,
+            classification: m.classification,
+            move_number: parseInt(m.fen.split(' ')[5] ?? '1', 10),
+          }));
+        if (puzzles.length > 0) savePuzzles(user.id, gameId, puzzles).catch(() => {});
       } catch (err) {
         console.error('Failed to save game:', err);
       }
@@ -539,6 +579,24 @@ export function GameProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const explainOpponentMove = useCallback(async (): Promise<void> => {
+    const { lastEngineMoveUci: uci, fenBeforeEngineMove: fenBefore, persona } = stateRef.current;
+    if (!uci || !fenBefore) return;
+    setState(prev => ({ ...prev, isExplainingOpponent: true, opponentExplanation: null }));
+    try {
+      const res = await fetch(`${BACKEND_URL}/api/explain-opponent-move`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ fen_before: fenBefore, engine_move: uci, persona_id: persona }),
+      });
+      if (!res.ok) throw new Error(`Backend error: ${res.status}`);
+      const data = await res.json() as { explanation: string };
+      setState(prev => ({ ...prev, opponentExplanation: data.explanation, isExplainingOpponent: false }));
+    } catch {
+      setState(prev => ({ ...prev, isExplainingOpponent: false }));
+    }
+  }, []);
+
   // Compute adaptive difficulty suggestion when a game ends
   const adaptiveFetchingRef = useRef(false);
   useEffect(() => {
@@ -587,6 +645,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       dismissCoachReport,
       adaptiveSuggestion: state.adaptiveSuggestion,
       explainMove,
+      explainOpponentMove,
     }}>
       {children}
     </GameContext.Provider>

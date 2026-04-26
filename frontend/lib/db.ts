@@ -27,15 +27,24 @@ interface SaveGamePayload {
   time_control?: string | null;
 }
 
-export async function saveGame(userId: string, payload: SaveGamePayload): Promise<void> {
-  const { error } = await supabase.from('games').insert({
+export async function saveGame(userId: string, payload: SaveGamePayload): Promise<string> {
+  const { data, error } = await supabase.from('games').insert({
     user_id: userId,
     opponent_id: payload.opponent_id,
     opponent_skill: payload.opponent_skill,
     result: payload.result,
     moves: payload.moves,
     time_control: payload.time_control ?? null,
-  });
+  }).select('id').single();
+  if (error) throw error;
+  return (data as { id: string }).id;
+}
+
+export async function updateGameEloAfter(gameId: string, playerEloAfter: number): Promise<void> {
+  const { error } = await supabase
+    .from('games')
+    .update({ player_elo_after: playerEloAfter })
+    .eq('id', gameId);
   if (error) throw error;
 }
 
@@ -270,6 +279,7 @@ export interface UserProfile {
   draws: number;
   resigned: number;
   recentGames: Array<{
+    id: string;
     opponent_id: string;
     result: string;
     played_at: string;
@@ -281,7 +291,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
   const [profileResult, gamesResult] = await Promise.all([
     supabase.from('users').select('username, current_elo').eq('id', userId).single(),
     supabase.from('games')
-      .select('opponent_id, result, played_at, time_control')
+      .select('id, opponent_id, result, played_at, time_control')
       .eq('user_id', userId)
       .order('played_at', { ascending: false })
       .limit(20),
@@ -290,6 +300,7 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
   if (profileResult.error || !profileResult.data) return null;
   const row = profileResult.data as unknown as { username: string; current_elo: number };
   const games = (gamesResult.data ?? []) as Array<{
+    id: string;
     opponent_id: string;
     result: string;
     played_at: string;
@@ -313,6 +324,26 @@ export async function updateUsername(userId: string, username: string): Promise<
   if (error) throw error;
 }
 
+export interface GameRow {
+  id: string;
+  opponent_id: string;
+  result: GameResult;
+  moves: MoveRecord[];
+  played_at: string;
+  player_elo_after: number | null;
+  time_control: string | null;
+}
+
+export async function getGameById(gameId: string): Promise<GameRow | null> {
+  const { data, error } = await supabase
+    .from('games')
+    .select('id, opponent_id, result, moves, played_at, player_elo_after, time_control')
+    .eq('id', gameId)
+    .single();
+  if (error || !data) return null;
+  return data as unknown as GameRow;
+}
+
 export interface LeaderboardEntry {
   username: string;
   current_elo: number;
@@ -332,4 +363,110 @@ export async function getLeaderboard(mode: EloMode = 'Untimed', limit = 50): Pro
     current_elo: ((row as unknown as Record<string, unknown>)[col] as number) ?? 400,
     rank: i + 1,
   }));
+}
+
+// ── Campaign Progress ─────────────────────────────────────────────────────────
+
+export type CampaignStatus = 'locked' | 'available' | 'complete';
+
+export async function getCampaignProgress(userId: string): Promise<Record<string, CampaignStatus>> {
+  const { data, error } = await supabase
+    .from('campaign_progress')
+    .select('persona_id, status')
+    .eq('user_id', userId);
+  if (error) throw error;
+  const result: Record<string, CampaignStatus> = {};
+  for (const row of data ?? []) {
+    result[(row as { persona_id: string; status: string }).persona_id] =
+      (row as { persona_id: string; status: string }).status as CampaignStatus;
+  }
+  return result;
+}
+
+export async function unlockPersona(userId: string, personaId: string): Promise<void> {
+  const { error } = await supabase.from('campaign_progress').upsert({
+    user_id: userId,
+    persona_id: personaId,
+    status: 'available',
+    unlocked_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+export async function completePersona(userId: string, personaId: string): Promise<void> {
+  const { error } = await supabase
+    .from('campaign_progress')
+    .update({ status: 'complete', completed_at: new Date().toISOString() })
+    .eq('user_id', userId)
+    .eq('persona_id', personaId);
+  if (error) throw error;
+}
+
+// ── Puzzles ───────────────────────────────────────────────────────────────────
+
+export interface PuzzleInsert {
+  fen: string;
+  correct_move: string;
+  classification: string;
+  move_number: number;
+}
+
+export interface PuzzleRow {
+  id: string;
+  game_id: string;
+  fen: string;
+  correct_move: string;
+  classification: string;
+  move_number: number;
+  solved: boolean;
+  solved_at: string | null;
+  created_at: string;
+}
+
+export async function savePuzzles(userId: string, gameId: string, puzzles: PuzzleInsert[]): Promise<void> {
+  if (puzzles.length === 0) return;
+  const rows = puzzles.map(p => ({ user_id: userId, game_id: gameId, ...p }));
+  const { error } = await supabase.from('puzzles').insert(rows);
+  if (error) throw error;
+}
+
+export async function getPuzzles(userId: string): Promise<PuzzleRow[]> {
+  const { data, error } = await supabase
+    .from('puzzles')
+    .select('id, game_id, fen, correct_move, classification, move_number, solved, solved_at, created_at')
+    .eq('user_id', userId)
+    .order('solved', { ascending: true })
+    .order('created_at', { ascending: false });
+  if (error) throw error;
+  return (data ?? []) as PuzzleRow[];
+}
+
+export async function markPuzzleSolved(puzzleId: string): Promise<void> {
+  const { error } = await supabase
+    .from('puzzles')
+    .update({ solved: true, solved_at: new Date().toISOString() })
+    .eq('id', puzzleId);
+  if (error) throw error;
+}
+
+// ── Dashboard Stats ───────────────────────────────────────────────────────────
+
+export interface DashboardGame {
+  result: GameResult;
+  opponent_id: string;
+  moves: MoveRecord[];
+  played_at: string;
+  player_elo_after: number | null;
+  time_control: string | null;
+}
+
+export async function getDashboardGames(userId: string, limit = 50): Promise<DashboardGame[]> {
+  const { data, error } = await supabase
+    .from('games')
+    .select('result, opponent_id, moves, played_at, player_elo_after, time_control')
+    .eq('user_id', userId)
+    .order('played_at', { ascending: false })
+    .limit(limit);
+  if (error) throw error;
+  return (data ?? []) as DashboardGame[];
 }

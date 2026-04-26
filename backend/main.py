@@ -1,10 +1,13 @@
 import time
-from fastapi import FastAPI, HTTPException
+from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import Response
+from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 import chess
 from dotenv import load_dotenv
+from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi.util import get_remote_address
+from slowapi.errors import RateLimitExceeded
 from services.stockfish import analyze_move, get_engine_first_move
 from services.coach import get_coaching_message, generate_coach_report, on_opening_identified, explain_why_not
 from services.debate import get_debate_transcript
@@ -15,7 +18,11 @@ from personas.personas import get_persona
 
 load_dotenv()
 
+limiter = Limiter(key_func=get_remote_address)
+
 app = FastAPI(title="Agentic Chess Engine API")
+app.state.limiter = limiter
+app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -66,6 +73,18 @@ class TtsRequest(BaseModel):
     text: str
 
 
+class EvaluatePreMoveRequest(BaseModel):
+    fen: str
+    move: str
+
+
+class ExplainOpponentMoveRequest(BaseModel):
+    fen_before: str
+    engine_move: str
+    persona_id: str
+    player_color: str = "white"
+
+
 class EloCalculateRequest(BaseModel):
     player_elo: int
     opponent_elo: int
@@ -100,7 +119,8 @@ def new_game(req: NewGameRequest) -> dict:
 
 
 @app.post("/api/move")
-def process_move(req: MoveRequest) -> dict:
+@limiter.limit("60/minute")
+def process_move(request: Request, req: MoveRequest) -> dict:
     try:
         persona = get_persona(req.persona)
 
@@ -203,7 +223,8 @@ def telemetry() -> dict:
 
 
 @app.post("/api/coach-report")
-def coach_report(req: CoachReportRequest) -> dict:
+@limiter.limit("20/minute")
+def coach_report(request: Request, req: CoachReportRequest) -> dict:
     try:
         if len(req.move_log) < 3:
             raise HTTPException(status_code=400, detail="Game too short for report")
@@ -222,7 +243,8 @@ def coach_report(req: CoachReportRequest) -> dict:
 
 
 @app.post("/api/explain-move")
-def explain_move_endpoint(req: ExplainMoveRequest) -> dict:
+@limiter.limit("20/minute")
+def explain_move_endpoint(request: Request, req: ExplainMoveRequest) -> dict:
     try:
         from services.stockfish import STOCKFISH_PATH, DEPTH, _score_to_cp
         import chess.engine as _ce
@@ -251,6 +273,56 @@ def explain_move_endpoint(req: ExplainMoveRequest) -> dict:
         return {"explanation": explanation, "best_move": best_move, "cpl": cpl}
     except HTTPException:
         raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/evaluate-premove")
+@limiter.limit("60/minute")
+def evaluate_premove(request: Request, req: EvaluatePreMoveRequest) -> dict:
+    try:
+        from services.stockfish import STOCKFISH_PATH, DEPTH, _score_to_cp, _classify
+        import chess.engine as _ce
+
+        board = chess.Board(req.fen)
+        candidate = chess.Move.from_uci(req.move)
+        if candidate not in board.legal_moves:
+            raise HTTPException(status_code=400, detail="Illegal move")
+
+        moving_color = board.turn
+        with _ce.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
+            info_before = engine.analyse(board, _ce.Limit(depth=DEPTH))
+            cp_before = _score_to_cp(info_before["score"])
+            pv = info_before.get("pv") or []
+            best_move = pv[0].uci() if pv else req.move
+
+            board.push(candidate)
+            if board.is_game_over():
+                return {"cpl": 0, "classification": "good", "best_move": best_move, "warning": False}
+            info_after = engine.analyse(board, _ce.Limit(depth=DEPTH))
+            cp_after = _score_to_cp(info_after["score"])
+
+        delta = (cp_after - cp_before) if moving_color == chess.WHITE else -(cp_after - cp_before)
+        cpl = max(0, -delta)
+        classification = _classify(cpl, delta)
+        return {"cpl": cpl, "classification": classification, "best_move": best_move, "warning": cpl > 100}
+    except HTTPException:
+        raise
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/explain-opponent-move")
+@limiter.limit("20/minute")
+def explain_opponent_move_endpoint(request: Request, req: ExplainOpponentMoveRequest) -> dict:
+    try:
+        from services.coach import explain_opponent_move
+        explanation = explain_opponent_move(req.fen_before, req.engine_move, req.persona_id)
+        return {"explanation": explanation}
     except Exception as e:
         import traceback
         traceback.print_exc()

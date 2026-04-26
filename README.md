@@ -2,7 +2,7 @@
 
 # ♟ The Noah Verse
 
-**A next-generation chess platform where every opponent is a fully autonomous AI agent — complete with a distinct personality, a calibrated Elo rating, and the ability to coach you in real time.**
+**A next-generation AI chess training platform where every opponent is a fully autonomous agent — with a distinct personality, a calibrated Elo, real-time coaching, a campaign ladder, replay analysis, and personalized training.**
 
 *Powered by Stockfish, orchestrated by LLMs, delivered through a full-stack TypeScript + Python microservices architecture.*
 
@@ -23,7 +23,7 @@
 
 Most chess apps give you a difficulty slider. The Noah Verse gives you **13 distinct opponents** — each a fully realized AI agent with its own personality, communication style, and strategic identity. From a blunder-prone chaos machine at 150 Elo to an all-knowing 2700-rated deity, every agent is backed by a Stockfish engine profile and an LLM that generates real-time coaching, trash talk, post-game analysis, and multi-agent move debates — all in character.
 
-This is not a wrapper around an existing chess platform. It is a ground-up multi-agent system where the chess engine, the LLM coaching pipeline, and the TTS voice synthesizer are orchestrated as independent microservices and composed into a single, immersive experience.
+Beyond head-to-head play, the platform is a complete chess training system: a campaign progression ladder, game history replay with move-by-move evaluation, a progress dashboard with CPL trends and weakness heatmaps, an auto-generated puzzle feed from your own blunders, and a personalized training plan — all without leaving the app.
 
 ---
 
@@ -53,16 +53,40 @@ Each agent uses a **tiered engine backend**: randomized move selection at the lo
 
 ---
 
+### 🗺 Campaign / Progression System
+
+A linear unlock ladder lets you climb through all 13 personas with structured learning goals. Each persona is assigned a lesson focus:
+
+| Persona | Lesson Focus |
+|---|---|
+| Roomba Noah | Moving pieces legally |
+| Clown Noah | Basic captures |
+| Tilted Noah | Opening principles |
+| Sleep-Deprived Noah | Avoiding blunders |
+| Gym Bro Noah | Tactics — forks & pins |
+| Coffee Shop Noah | Pawn structure |
+| Tech Bro Noah | Positional play |
+| Rat Main Noah | Endgame fundamentals |
+| Grandmaster Twitch Noah | Attack patterns |
+| 4.0 GPA Noah | Strategic planning |
+| Devil Noah | Complex combinations |
+| Angel Noah | Defense & counterplay |
+| God Noah | Full game mastery |
+
+**Unlock logic:** Roomba Noah is always available. Win against a persona to unlock the next one. Progress is stored in Supabase (`campaign_progress` table, RLS-enforced) and persists across sessions. Campaign games auto-start in Teach Mode with no time control.
+
+---
+
 ### 🎭 Per-Agent Strategy Profiles
 
 Beyond Elo calibration, each agent has a `StrategyProfile` that governs *how* it plays, not just *how strong* it plays:
 
-- **`blunder_chance`** — probability of picking a sub-optimal Stockfish MultiPV candidate instead of the top move
+- **`blunder_chance`** — probability of picking a sub-optimal Stockfish MultiPV candidate
 - **`endgame_skill`** — scaled blunder injection increase when piece count drops below 10
 - **`time_pressure_multiplier`** — blunder chance amplifier when clock drops below 30 seconds
 - **`tactic_depth`** — depth of MultiPV analysis used for candidate move selection
 
-This means two agents at similar Elo can play very differently: one might be a solid positional player who collapses under time pressure; another might blunder freely in the endgame but find brilliant tactics in the middlegame.
+Two agents at similar Elo can play very differently: one might be solid positionally but collapse under time pressure; another might blunder in the endgame but find brilliant tactics in the middlegame.
 
 ---
 
@@ -70,15 +94,37 @@ This means two agents at similar Elo can play very differently: one might be a s
 
 Toggle **Teach Mode** before a game to activate the full coaching pipeline:
 
-- **Real-time move classification** — every move scored as Brilliant / Great / Good / Inaccuracy / Mistake / Blunder via Stockfish centipawn loss analysis (opening exemption: inaccuracies in moves 1–10 auto-upgraded to Good)
+- **Real-time move classification** — every move scored as Brilliant / Great / Good / Inaccuracy / Mistake / Blunder via Stockfish centipawn loss (opening exemption: inaccuracies in moves 1–10 auto-upgraded to Good)
 - **Natural-language commentary** — Groq-powered LLM generates coaching in the persona's voice after each significant move
-- **Blunder pattern injection** — queries your last 20 games, detects recurring mistake patterns (min. 3 blunders across 3 games), and injects that context into the LLM system prompt so the coach addresses your *actual* weaknesses
-- **Opening tip** — fires once per game (moves 5–12) when an ECO opening is identified, giving a one-shot tip on key ideas or threats
+- **Blunder pattern injection** — queries your last 20 games, detects recurring mistake patterns, and injects that context into the LLM system prompt so the coach addresses your *actual* weaknesses
+- **Opening tip** — fires once per game (moves 5–12) when an ECO opening is identified
 - **Voice synthesis** — coaching messages stream through ElevenLabs TTS with per-session mute control
 - **Hint on demand** — request a natural-language explanation at any point
 - **LRU response cache** — identical (context + persona) coaching responses are served from an in-memory cache, cutting repeat Groq calls to zero
 
-All LLM and TTS calls are aggressively gated behind centipawn thresholds and explicit user actions to minimize API cost.
+---
+
+### 🚨 Pre-Move Blunder Confirmation
+
+In Teach Mode, before a move is submitted to the engine, the backend evaluates it via `/api/evaluate-premove`. If the centipawn loss exceeds 100 (a blunder threshold), a warning modal appears:
+
+- Shows the CPL cost and the engine's recommended best move
+- Two options: **Take it back** (restores the board) or **Play anyway**
+- Only fires in Teach Mode — fast chess is uninterrupted
+
+The board applies the move visually immediately for responsiveness, then either commits it or restores the previous FEN on cancel.
+
+---
+
+### 🤔 "Why Did the AI Play That?"
+
+After every engine move in Teach Mode, a **"Why did AI play that?"** button appears in the coach panel. Clicking calls `/api/explain-opponent-move`, which generates a 2–3 sentence explanation of the engine's reasoning — in the persona's own voice. The response appears in an indigo callout panel and is gated: one explanation per AI move, re-enabled after the next engine reply.
+
+---
+
+### 🔍 "Explain Why Not"
+
+In Teach Mode, **right-click any legal move dot** to ask the coach why that candidate is worse than the engine's best move. The backend computes the centipawn cost, then calls the LLM (if CPL > 30) to explain the specific tactical or strategic reason it falls short — in the persona's voice. Responses appear as a sky-blue callout in the coach panel.
 
 ---
 
@@ -92,13 +138,75 @@ When your move is a significant error (CPL > 50), three internal agents debate t
 | **Positional** | Pawn structure, piece activity, long-term strategy |
 | **Safety** | King safety, avoiding unnecessary exposure |
 
-A **Final Arbiter** LLM call synthesizes the debate into a verdict. The transcript is displayed in a collapsible `DebatePanel` in the coach sidebar. Only one Groq call is made per move (the arbiter); the agent arguments are generated deterministically from Stockfish data.
+A **Final Arbiter** LLM call synthesizes the debate into a verdict. Only one Groq call is made per move; the agent arguments are generated deterministically from Stockfish data.
 
 ---
 
-### 🔍 "Explain Why Not"
+### 📼 Game History Replay
 
-In Teach Mode, **right-click any legal move dot** to ask the coach why that candidate is worse than the engine's best move. The backend computes the centipawn cost of the candidate, then calls the LLM (if CPL > 30) to explain the specific tactical or strategic reason it falls short — in the persona's voice. Responses appear as a sky-blue callout in the coach panel.
+Every completed game is saved with a full `MoveRecord[]` (FEN, SAN, CPL, classification, best move, evaluation, coach message, debate transcript). From the **Profile** page, click **Replay** on any game to enter the replay viewer:
+
+- Read-only chessboard steps through each position
+- Vertical **evaluation bar** (pure SVG, no dependencies) shows white/black advantage
+- Clickable move list with classification badges and CPL scores
+- Auto-play mode steps through at 800ms per move
+- Selected move shows the coach message and best move suggestion from that moment in the game
+
+---
+
+### 📊 Progress Dashboard
+
+The **Dashboard** page aggregates your last 50 games and visualizes your improvement over time:
+
+- **Elo history** — pure SVG line chart of rating across recent games
+- **CPL trend** — average centipawn loss per game, last 10 games
+- **Classification breakdown** — horizontal bar chart of Brilliant / Great / Good / Inaccuracy / Mistake / Blunder distribution
+- **Win rate by persona** — table showing W/L/D for each opponent you've faced
+- **Summary stat cards** — total games, win rate, avg CPL, blunders per game
+
+No external chart library — all visualizations are hand-written SVG.
+
+---
+
+### 🎯 Personalized Training Plan
+
+Below the dashboard stats, a deterministic algorithm generates 3–5 prioritized training recommendations based on your actual numbers:
+
+| Condition | Recommendation |
+|---|---|
+| Avg CPL > 80 | Slow down — use 10+0 time control to reduce blunders |
+| Blunders/game > 2 | Solve 5 puzzles before your next game |
+| < 5 total games | Play more games to unlock personalized insights |
+| All metrics healthy | Play the next campaign opponent |
+
+No LLM call — pure deterministic logic on aggregated game data.
+
+---
+
+### 🧩 Puzzle Generator
+
+After every game, blunders and mistakes (where a `bestMove` was recorded) are automatically extracted and saved to Supabase as puzzles. The **Puzzles** page presents them as an interactive training feed:
+
+- Board shows the position just before your blunder
+- Prompt: "Find the best move in this position"
+- Drag-to-play: correct move → success animation; wrong move → shows the right answer
+- Progress bar and prev/next navigation through your personal puzzle set
+- Solved puzzles are marked and de-prioritized on next visit
+
+Puzzle solving is entirely client-side — no API calls, pure UCI string comparison.
+
+---
+
+### 🔎 Opening Explorer
+
+The ECO badge in the board header (e.g. `B20 · Sicilian Defense`) is a clickable button. Clicking opens the **Opening Explorer Modal**, which shows static reference data for 20 major openings:
+
+- ECO code, full name, and main line moves
+- **White's Plan** — the strategic idea for the first player
+- **Black's Plan** — the counterplay strategy
+- **Watch Out** — a common trap or pitfall specific to that opening
+
+Entirely static — no API calls, no database reads.
 
 ---
 
@@ -115,8 +223,6 @@ After every game (minimum 3 moves), a structured AI-generated report is availabl
 - **Recommended practice** — specific, actionable improvement advice
 - **Estimated performance rating** — derived from average centipawn loss
 
-Reports are generated in second person ("you played…") and scoped exclusively to the player's moves — not the opponent's.
-
 ---
 
 ### 📊 Player Weakness Tracking
@@ -131,7 +237,7 @@ The system analyzes your last 20 games and surfaces a personalized weakness prof
 | Endgame Technique | Blunders when piece count ≤ 8 |
 | Queen Overextension | Queen moves before move 20 that cost material |
 
-Each category includes a trend indicator (improving / worsening / stable) computed by comparing your rate in recent games vs. older games.
+Each category includes a trend indicator (improving / worsening / stable).
 
 ---
 
@@ -142,17 +248,13 @@ The `GameOverModal` analyzes your recent performance and surfaces suggestions au
 - **Upgrade suggestion** (indigo banner) — win streak vs. current persona detected
 - **Downgrade suggestion** (amber banner) — early blunder rate trending up across recent games
 
-No user action required; the suggestion computes on game completion from Supabase history.
-
 ---
 
 ### 🏆 Dynamic Elo & Multi-Mode Ratings
 
-Ratings tracked across five independent time control pools:
+Ratings tracked across five independent time control pools: **Bullet · Blitz · Rapid · Classical · Unlimited**
 
-- **Bullet** · **Blitz** · **Rapid** · **Classical** · **Unlimited**
-
-Dynamic K-factor scaling: K=40 for new players (< 20 games), K=20 for established players, K=10 for 2400+ Elo. Elo updates are a single atomic batch write on game conclusion — never mid-game.
+Dynamic K-factor scaling: K=40 for new players (< 20 games), K=20 for established, K=10 for 2400+ Elo. Elo updates are a single atomic batch write on game conclusion — never mid-game. Each game row stores `player_elo_after` for accurate rating history.
 
 A **global leaderboard** (top 50) is accessible from the coach panel during play.
 
@@ -160,15 +262,13 @@ A **global leaderboard** (top 50) is accessible from the coach panel during play
 
 ### 🎵 Atmosphere & Per-Persona Music
 
-The background dynamically responds to play quality:
-
 | State | Trigger | Visual | Audio |
 |---|---|---|---|
 | Calm | Default | Neutral | `calm.mp3` |
 | Hype | 3 consecutive Good / Great / Brilliant | Indigo glow | `hype.mp3` |
 | Dramatic | 3 consecutive Inaccuracy / Mistake / Blunder | Red glow | `dramatic.mp3` |
 
-Each persona has its own 3-track soundtrack (`/audio/{personaId}/{intensity}.mp3`). Tracks crossfade on state and persona changes. A cinematic vignette darkens the edges of the viewport to draw focus to the board. If a persona's tracks are missing, the system falls back to `/audio/default/{intensity}.mp3` automatically.
+Each persona has its own 3-track soundtrack. Tracks crossfade on state and persona changes. Missing persona tracks fall back to `/audio/default/{intensity}.mp3` automatically.
 
 ---
 
@@ -188,13 +288,11 @@ Ten board color themes, unlockable by reaching the required Elo:
 | Obsidian | 1800 |
 | Inferno | 2100 |
 
-Theme selection persists in `localStorage` and applies immediately to the board. The **Shop** page shows lock/unlock status against your current Elo; the **Settings** page provides quick-change access.
-
 ---
 
 ### 🔊 Sound Engine
 
-A singleton `AudioManager` preloads 13 sound effects on mount with zero re-render overhead. Check priority: check sound overrides capture sound when both apply.
+A singleton `AudioManager` preloads 13 sound effects on mount. Check priority: check sound overrides capture sound when both apply.
 
 | Trigger | SFX |
 |---|---|
@@ -213,75 +311,82 @@ A singleton `AudioManager` preloads 13 sound effects on mount with zero re-rende
 
 ---
 
-### ♟ Opening Recognition
+### 🎓 Onboarding Tutorial
 
-Live ECO detection using an embedded `eco-openings.json` lookup (EPD key → `{ code, name }`). The opening badge updates after every move and displays `"ECO · Variation Name"` (e.g. `"B30 · Sicilian Defense"`). The first identification in Teach Mode triggers a one-shot persona coaching tip.
+First-time visitors to `/play` see a 5-step spotlight tutorial explaining the persona system, Teach Mode, blunder protection, and the Dashboard. Stored in `localStorage` — never shown again after completion. Dismissable at any step.
 
 ---
 
-### 🖥 Observability
+### 🛡 Production Polish
 
-An in-memory telemetry ring buffer (last 1,000 entries) tracks per-service latency and error rates. A dev dashboard at `/dev` (gated by `NEXT_PUBLIC_DEV_MODE=true`) polls `/api/telemetry` every 5 seconds.
+- **Guest mode** — `/play` is accessible without an account. Guest games are fully functional; Elo and history are not persisted. An amber banner in the coach panel prompts sign-in.
+- **Rate limiting** — `slowapi` middleware on the FastAPI backend: `/api/move` and `/api/evaluate-premove` at 60 req/min per IP; `/api/coach-report`, `/api/explain-move`, and `/api/explain-opponent-move` at 20 req/min per IP. Returns 429 with JSON error on breach.
+- **Global error boundary** — Next.js 14 `app/error.tsx` catches unhandled render errors and presents a recoverable "Try again" screen.
+- **Opening recognition** — Live ECO detection using an embedded lookup. Badge updates after every move.
 
 ---
 
 ## Architecture
 
 ```
-┌─────────────────────────────────────────────────────────────────┐
-│                           Browser                               │
-│                                                                 │
-│  Next.js 14 App Router                                          │
-│  ┌────────────┐  ┌─────────────┐  ┌──────────┐  ┌──────────┐  │
-│  │LobbyScreen │  │ ChessBoard  │  │CoachPanel│  │DebatePanel│ │
-│  └────────────┘  └─────────────┘  └──────────┘  └──────────┘  │
-│                         │                                       │
-│               GameContext (React)                               │
-│    move log · eval · classification · opening · debate          │
-│    deferred game-over · adaptive suggestion · theme             │
-└─────────────────────────────┬───────────────────────────────────┘
-                              │ HTTP REST
-┌─────────────────────────────▼───────────────────────────────────┐
-│                      FastAPI (Python 3.11)                      │
-│                                                                 │
-│  POST /api/move           POST /api/coach-report                │
-│  POST /api/explain-move   POST /api/engine-first-move           │
-│  POST /api/elo/calculate  POST /api/tts                         │
-│  GET  /api/telemetry                                            │
-│                                                                 │
-│  ┌────────────┐  ┌──────────────┐  ┌──────────┐  ┌─────────┐  │
-│  │ Stockfish  │  │  coach.py    │  │debate.py │  │cache.py │  │
-│  │ (local)    │  │  (Groq LLM)  │  │(3-agent) │  │(LRU 512)│  │
-│  │ MultiPV=3  │  │  LangChain   │  │1 Groq    │  │         │  │
-│  └────────────┘  └──────────────┘  │call/move │  └─────────┘  │
-│                                    └──────────┘                 │
-│  ┌─────────────────┐  ┌─────────────────────────────────────┐  │
-│  │  tts.py         │  │  telemetry.py (ring buffer, p50/p95) │  │
-│  │  (ElevenLabs)   │  └─────────────────────────────────────┘  │
-│  └─────────────────┘                                            │
-└─────────────────────────────────────────────────────────────────┘
-                              │
-                    ┌─────────▼──────────┐
-                    │      Supabase      │
-                    │  users · games     │
-                    │  coach_reports     │
-                    │  RLS on all tables │
-                    └────────────────────┘
+┌──────────────────────────────────────────────────────────────────────┐
+│                              Browser                                  │
+│                                                                       │
+│  Next.js 14 App Router                                                │
+│  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐  │
+│  │  Lobby   │ │ChessBoard │ │CoachPanel│ │Dashboard │ │Campaign  │  │
+│  └──────────┘ └───────────┘ └──────────┘ └──────────┘ └──────────┘  │
+│  ┌──────────┐ ┌───────────┐ ┌──────────┐                             │
+│  │  Puzzles │ │  Replay   │ │ Profile  │                             │
+│  └──────────┘ └───────────┘ └──────────┘                             │
+│                        │                                              │
+│               GameContext (React)                                     │
+│    move log · eval · classification · opening · debate                │
+│    deferred game-over · adaptive suggestion · campaign state          │
+└───────────────────────────┬──────────────────────────────────────────┘
+                            │ HTTP REST (rate-limited via slowapi)
+┌───────────────────────────▼──────────────────────────────────────────┐
+│                        FastAPI (Python 3.11)                          │
+│                                                                       │
+│  POST /api/move               POST /api/coach-report                  │
+│  POST /api/explain-move       POST /api/engine-first-move             │
+│  POST /api/evaluate-premove   POST /api/explain-opponent-move         │
+│  POST /api/elo/calculate      POST /api/tts                           │
+│  GET  /api/telemetry                                                  │
+│                                                                       │
+│  ┌────────────┐  ┌──────────────┐  ┌──────────┐  ┌──────────────┐   │
+│  │ Stockfish  │  │  coach.py    │  │debate.py │  │  cache.py    │   │
+│  │ (local)    │  │  (Groq LLM)  │  │(3-agent) │  │  (LRU 512)   │   │
+│  │ MultiPV=3  │  │  LangChain   │  │1 Groq/mv │  │              │   │
+│  └────────────┘  └──────────────┘  └──────────┘  └──────────────┘   │
+└───────────────────────────┬──────────────────────────────────────────┘
+                            │
+               ┌────────────▼────────────┐
+               │         Supabase         │
+               │  users · games           │
+               │  campaign_progress       │
+               │  puzzles                 │
+               │  RLS on all tables       │
+               └──────────────────────────┘
 ```
 
 ### Key Design Decisions
 
-**Deferred game-over pattern** — `concludeGame()` only sets a `gameOverPending` flag in React context. `acknowledgeGameOver()` is the sole function that commits to Supabase and resets board state. This separates UI feedback from data persistence and prevents partial write races.
+**Deferred game-over pattern** — `concludeGame()` only sets a `gameOverPending` flag. `acknowledgeGameOver()` is the sole function that commits to Supabase and resets board state, preventing partial write races.
 
 **No mid-game DB writes** — move history lives entirely in React state and is batch-inserted as a JSONB array on game conclusion. Eliminates per-move latency and prevents partial write corruption.
 
-**Stockfish tiered backend** — low-Elo agents use Python-level randomized move selection before Stockfish is ever consulted. Prevents the "all agents feel the same under 800 Elo" problem common in naive skill-level implementations.
+**Premove blunder check** — `onPieceDrop` returns `true` synchronously (board shows the move immediately). If the backend flags it as a blunder, a modal appears; on cancel, the board is restored to the pre-move FEN from a saved snapshot. This avoids any visual flicker while keeping the check genuinely asynchronous.
 
-**Mate score capping** — `_score_to_cp()` caps mate scores at ±600 cp. Prevents astronomical centipawn loss values (up to 20,000 cp) when a player misses a forced mate, which would corrupt coaching quality metrics.
+**applyEngineReply extraction** — shared `useCallback` handles the engine reply sequence identically whether invoked from the normal move flow or from blunder-confirm acceptance, eliminating code duplication.
 
-**Phase-based routing** — lobby → game is a `useState` transition in `play/page.tsx`, not URL navigation. Keeps `AtmosphereBackground` mounted across transitions so music never re-initializes.
+**Puzzle generation on game end** — `acknowledgeGameOver` scans the completed `MoveRecord[]` for blunder/mistake entries with a recorded `bestMove`, then batch-inserts them as puzzles in a single Supabase call. No mid-game writes, no separate trigger.
 
-**LRU coaching cache** — identical (classification + evaluation + persona) tuples are served from an in-memory LRU cache (maxsize=512). Cache hits skip the Groq call entirely and are tracked in telemetry.
+**Stockfish tiered backend** — low-Elo agents use Python-level randomized move selection before Stockfish is consulted. Prevents the "all agents feel the same under 800 Elo" problem.
+
+**Mate score capping** — `_score_to_cp()` caps mate scores at ±600 cp. Prevents astronomical CPL values that corrupt coaching quality metrics.
+
+**LRU coaching cache** — identical (classification + evaluation + persona) tuples skip the Groq call entirely. Cache hits tracked in telemetry.
 
 ---
 
@@ -292,14 +397,14 @@ Measured locally (Stockfish depth=15, Groq `llama-3.3-70b-versatile`):
 | Service | p50 | p95 | Notes |
 |---|---|---|---|
 | Stockfish analysis | ~220 ms | ~480 ms | depth=15, MultiPV=3 |
-| Groq coaching | ~450 ms | ~900 ms | gated: only on blunders / explicit request |
+| Groq coaching | ~450 ms | ~900 ms | gated: blunders / explicit request |
 | Groq debate (arbiter) | ~380 ms | ~750 ms | gated: CPL > 50 only |
+| Groq explain-opponent | ~400 ms | ~850 ms | gated: explicit button click |
 | ElevenLabs TTS | ~650 ms | ~1,400 ms | gated: explicit user action |
 | `/api/move` (no coaching) | ~250 ms | ~520 ms | Stockfish only |
 | `/api/move` (with coaching) | ~720 ms | ~1,350 ms | Stockfish + Groq |
 | Cache hit (coaching) | < 5 ms | < 10 ms | LRU, no Groq call |
-
-Live metrics are available at `/api/telemetry` (see Observability section).
+| `/api/evaluate-premove` | ~230 ms | ~490 ms | Stockfish only, no LLM |
 
 ---
 
@@ -308,7 +413,7 @@ Live metrics are available at `/api/telemetry` (see Observability section).
 | Layer | Technology |
 |---|---|
 | Frontend Framework | Next.js 14 (App Router) |
-| UI Language | TypeScript 5 + React 18 (hooks only, no class components) |
+| UI Language | TypeScript 5 + React 18 (hooks only) |
 | Styling | Tailwind CSS |
 | Chess Logic | `chess.js` v1 + `react-chessboard` |
 | Backend Framework | FastAPI (Python 3.11+) |
@@ -316,7 +421,8 @@ Live metrics are available at `/api/telemetry` (see Observability section).
 | LLM Orchestration | LangChain + Groq API (`llama-3.3-70b-versatile`) |
 | Voice Synthesis | ElevenLabs API |
 | Auth & Database | Supabase (PostgreSQL + Row Level Security) |
-| Audio | Web Audio API (singleton manager, zero dependencies) |
+| Rate Limiting | slowapi (FastAPI middleware) |
+| Audio | Web Audio API (singleton manager) |
 | Testing | pytest (backend) + Jest (frontend) |
 
 ---
@@ -385,6 +491,7 @@ Open [http://localhost:3000](http://localhost:3000).
 ### 4. Supabase Schema
 
 ```sql
+-- Core tables
 CREATE TABLE public.users (
   id UUID REFERENCES auth.users(id) ON DELETE CASCADE PRIMARY KEY,
   username TEXT NOT NULL UNIQUE,
@@ -401,17 +508,55 @@ CREATE TABLE public.games (
   result TEXT NOT NULL CHECK (result IN ('win', 'loss', 'draw', 'resigned')),
   time_control TEXT DEFAULT NULL,
   moves JSONB NOT NULL DEFAULT '[]',
+  player_elo_after INTEGER,
   played_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
 );
 
+-- Campaign progression
+CREATE TABLE public.campaign_progress (
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  persona_id TEXT NOT NULL,
+  status TEXT NOT NULL CHECK (status IN ('locked','available','complete')) DEFAULT 'locked',
+  unlocked_at TIMESTAMPTZ,
+  completed_at TIMESTAMPTZ,
+  PRIMARY KEY (user_id, persona_id)
+);
+
+-- Puzzles generated from blunders
+CREATE TABLE public.puzzles (
+  id UUID DEFAULT gen_random_uuid() PRIMARY KEY,
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  game_id UUID REFERENCES public.games(id) ON DELETE CASCADE NOT NULL,
+  fen TEXT NOT NULL,
+  correct_move TEXT NOT NULL,
+  classification TEXT NOT NULL,
+  move_number INTEGER NOT NULL,
+  solved BOOLEAN NOT NULL DEFAULT FALSE,
+  solved_at TIMESTAMPTZ,
+  created_at TIMESTAMPTZ NOT NULL DEFAULT NOW()
+);
+
+-- RLS
 ALTER TABLE public.users ENABLE ROW LEVEL SECURITY;
 ALTER TABLE public.games ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.campaign_progress ENABLE ROW LEVEL SECURITY;
+ALTER TABLE public.puzzles ENABLE ROW LEVEL SECURITY;
 
 CREATE POLICY "users_select_own" ON public.users FOR SELECT USING (auth.uid() = id);
 CREATE POLICY "users_insert_own" ON public.users FOR INSERT WITH CHECK (auth.uid() = id);
 CREATE POLICY "users_update_own" ON public.users FOR UPDATE USING (auth.uid() = id);
 CREATE POLICY "games_select_own" ON public.games FOR SELECT USING (auth.uid() = user_id);
 CREATE POLICY "games_insert_own" ON public.games FOR INSERT WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "games_update_own" ON public.games FOR UPDATE USING (auth.uid() = user_id);
+CREATE POLICY "Users manage own campaign" ON public.campaign_progress
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+CREATE POLICY "Users manage own puzzles" ON public.puzzles
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
+-- Seed first campaign persona for all existing users
+INSERT INTO public.campaign_progress (user_id, persona_id, status)
+  SELECT id, 'roomba_noah', 'available' FROM public.users
+  ON CONFLICT DO NOTHING;
 ```
 
 ### 5. Audio Files
@@ -429,7 +574,7 @@ notify.mp3
 audio/{persona_id}/calm.mp3
 audio/{persona_id}/dramatic.mp3
 audio/{persona_id}/hype.mp3
-audio/default/calm.mp3        # fallback if persona tracks are missing
+audio/default/calm.mp3
 audio/default/dramatic.mp3
 audio/default/hype.mp3
 ```
@@ -453,8 +598,6 @@ Covers: CPL classification boundaries, Elo math (K-factor / outcomes / floor / u
 
 ```bash
 cd frontend
-npm install --save-dev jest @types/jest ts-jest
-# configure jest.config.js with next/jest
 npm test
 ```
 
@@ -467,43 +610,54 @@ Covers: Elo calculation logic mirroring `/api/elo/calculate`.
 ```
 agentic-chess-engine/
 ├── backend/
-│   ├── main.py                    # All FastAPI routes
+│   ├── main.py                        # All FastAPI routes + slowapi rate limiting
 │   ├── personas/
-│   │   └── personas.py            # 13-persona ladder + strategy profiles
+│   │   └── personas.py                # 13-persona ladder + strategy profiles
 │   ├── services/
-│   │   ├── stockfish.py           # Engine reply, CPL analysis, mate cap
-│   │   ├── coach.py               # LLM coaching, report, explain-why-not
-│   │   ├── debate.py              # 3-agent MultiPV debate
-│   │   ├── tts.py                 # ElevenLabs TTS
-│   │   ├── telemetry.py           # Latency ring buffer
-│   │   └── cache.py               # LRU coaching cache
+│   │   ├── stockfish.py               # Engine reply, CPL analysis, mate cap
+│   │   ├── coach.py                   # LLM coaching, report, explain-why-not, explain-opponent
+│   │   ├── debate.py                  # 3-agent MultiPV debate
+│   │   ├── tts.py                     # ElevenLabs TTS
+│   │   ├── telemetry.py               # Latency ring buffer
+│   │   └── cache.py                   # LRU coaching cache
 │   └── tests/
 │       ├── test_move_classification.py
 │       ├── test_elo_math.py
 │       └── test_agent_config.py
 └── frontend/
     ├── app/
-    │   ├── page.tsx               # Landing page
-    │   ├── play/page.tsx          # Lobby ↔ game phase controller
-    │   ├── settings/page.tsx      # Board theme picker
-    │   ├── shop/page.tsx          # Elo-gated theme gallery
-    │   ├── profile/page.tsx       # Stats, history, username editing
+    │   ├── page.tsx                   # Landing page (nav to all sections)
+    │   ├── error.tsx                  # Global error boundary
+    │   ├── play/page.tsx              # Lobby ↔ game phase controller, campaign auto-start
+    │   ├── campaign/page.tsx          # Persona ladder with unlock status
+    │   ├── dashboard/page.tsx         # Stats, charts, training plan
+    │   ├── puzzles/page.tsx           # Blunder puzzle feed
+    │   ├── replay/[gameId]/page.tsx   # Move-by-move game replay viewer
+    │   ├── profile/page.tsx           # Stats, history, replay links
+    │   ├── settings/page.tsx          # Board theme picker
+    │   ├── shop/page.tsx              # Elo-gated theme gallery
     │   ├── components/
-    │   │   ├── ChessBoard.tsx     # Board, arrows, sound, click-to-move
-    │   │   ├── CoachPanel.tsx     # Coaching, eval, debate, explain
-    │   │   ├── DebatePanel.tsx    # Collapsible 3-agent debate
-    │   │   ├── LobbyScreen.tsx    # Persona cards, time controls
-    │   │   ├── GameOverModal.tsx  # Result + adaptive suggestion
-    │   │   ├── ChessClock.tsx     # Countdown with increment
-    │   │   └── AtmosphereBackground.tsx  # Crossfade music + vignette
+    │   │   ├── ChessBoard.tsx         # Board, arrows, premove blunder check, opening explorer
+    │   │   ├── CoachPanel.tsx         # Coaching, eval, debate, explain, guest banner
+    │   │   ├── BlunderConfirmModal.tsx # Pre-move blunder warning dialog
+    │   │   ├── EvalBar.tsx            # Vertical SVG evaluation bar
+    │   │   ├── OnboardingOverlay.tsx  # First-visit 5-step tutorial
+    │   │   ├── OpeningExplorerModal.tsx # Static opening reference modal
+    │   │   ├── DebatePanel.tsx        # Collapsible 3-agent debate
+    │   │   ├── LobbyScreen.tsx        # Persona cards, time controls
+    │   │   ├── GameOverModal.tsx      # Result + adaptive suggestion
+    │   │   ├── ChessClock.tsx         # Countdown with increment
+    │   │   ├── WeaknessPanel.tsx      # Recurring mistake tracker
+    │   │   └── AtmosphereBackground.tsx # Crossfade music + vignette
     │   └── context/
-    │       ├── GameContext.tsx    # Full game state
-    │       └── AuthContext.tsx    # Supabase auth gate
+    │       ├── GameContext.tsx        # Full game state + campaign + puzzles
+    │       └── AuthContext.tsx        # Supabase auth gate
     └── lib/
-        ├── themes.ts              # 10 board themes, localStorage
-        ├── db.ts                  # All Supabase queries
-        ├── audio.ts               # SFX singleton manager
-        └── openings.ts            # ECO lookup
+        ├── themes.ts                  # 10 board themes, localStorage
+        ├── db.ts                      # All Supabase queries (RLS-enforced)
+        ├── audio.ts                   # SFX singleton manager
+        ├── openings.ts                # ECO lookup
+        └── openings-explorer.ts       # Static opening reference data (20 openings)
 ```
 
 ---

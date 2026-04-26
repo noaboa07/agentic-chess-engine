@@ -9,6 +9,9 @@ import ChessClock from './ChessClock';
 import { playSfx, preloadSfx, type SfxName } from '../../lib/audio';
 import { getStoredThemeId, getThemeById } from '../../lib/themes';
 import GameOverModal from './GameOverModal';
+import BlunderConfirmModal from './BlunderConfirmModal';
+import OpeningExplorerModal from './OpeningExplorerModal';
+import { findOpeningEntry } from '../../lib/openings-explorer';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
 const BOARD_WIDTH = 560;
@@ -154,6 +157,18 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
   const [arrows, setArrows] = useState<ArrowTuple[]>([]);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [boardTheme] = useState(() => getThemeById(getStoredThemeId()));
+  const [openingModalOpen, setOpeningModalOpen] = useState(false);
+
+  interface PendingMove {
+    prevFen: string;
+    gameCopy: Chess;
+    moveUci: string;
+    san: string;
+    cpl: number;
+    bestMove: string;
+    timeRemainingSecs: number | null;
+  }
+  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
 
   const engineTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const engineFirstMoveFiredRef = useRef(false);
@@ -295,6 +310,56 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [playerColor, boardResetToken]);
 
+  const applyEngineReply = useCallback(
+    (result: { engineMove: string | null } | null, gameCopy: Chess) => {
+      if (gameCopy.isGameOver()) {
+        setBoardLocked(false);
+        void concludeGame(detectResult(gameCopy), getGameOverReason(gameCopy));
+        return;
+      }
+      if (result?.engineMove) {
+        engineTimeoutRef.current = setTimeout(() => {
+          engineTimeoutRef.current = null;
+          const afterEngine = new Chess(gameCopy.fen());
+          const em = afterEngine.move(uciToMove(result.engineMove!));
+          if (em) {
+            playSfx(getMoveSound(em.flags, em.captured, afterEngine, false), globalMuted);
+            setGame(afterEngine);
+            setFen(afterEngine.fen());
+            if (afterEngine.isGameOver()) {
+              void concludeGame(detectResult(afterEngine), getGameOverReason(afterEngine));
+              return;
+            }
+          }
+          if (timeControl && timeControl.initialMs > 0) startClock(playerColor);
+          setBoardLocked(false);
+        }, 400);
+      } else {
+        setBoardLocked(false);
+      }
+    },
+    [concludeGame, detectResult, globalMuted, timeControl, startClock, playerColor],
+  );
+
+  const handleBlunderConfirm = useCallback(() => {
+    if (!pendingMove) return;
+    const pm = pendingMove;
+    setPendingMove(null);
+    setBoardLocked(true);
+    submitMove(pm.prevFen, pm.moveUci, pm.san, pm.timeRemainingSecs)
+      .then(result => applyEngineReply(result, pm.gameCopy));
+  }, [pendingMove, submitMove, applyEngineReply]);
+
+  const handleBlunderCancel = useCallback(() => {
+    if (!pendingMove) return;
+    preMovePositionsRef.current.pop();
+    const restored = new Chess(pendingMove.prevFen);
+    setGame(restored);
+    setFen(pendingMove.prevFen);
+    setBoardLocked(false);
+    setPendingMove(null);
+  }, [pendingMove]);
+
   const onPieceDrop = useCallback(
     (sourceSquare: Square, targetSquare: Square): boolean => {
       if (boardLocked || isAnalyzing) return false;
@@ -307,16 +372,13 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
         return false;
       }
       setSelectedSquare(null);
-
       playSfx(getMoveSound(move.flags, move.captured, gameCopy, true), globalMuted);
-
       preMovePositionsRef.current.push(prevFen);
       setArrows([]);
       setGame(gameCopy);
       setFen(gameCopy.fen());
       setBoardLocked(true);
 
-      // Player moved — start opponent's clock immediately
       const opponentColor = playerColor === 'white' ? 'black' : 'white';
       if (timeControl && timeControl.initialMs > 0) startClock(opponentColor);
 
@@ -324,39 +386,35 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
       const timeRemainingSecs = playerTimeRemainingRef.current === Infinity
         ? null
         : playerTimeRemainingRef.current / 1000;
-      submitMove(prevFen, moveUci, move.san, timeRemainingSecs).then(result => {
-        if (gameCopy.isGameOver()) {
-          const r = detectResult(gameCopy);
-          setBoardLocked(false);
-          void concludeGame(r, getGameOverReason(gameCopy));
-          return;
-        }
-        if (result?.engineMove) {
-          engineTimeoutRef.current = setTimeout(() => {
-            engineTimeoutRef.current = null;
-            const afterEngine = new Chess(gameCopy.fen());
-            const engineMoveResult = afterEngine.move(uciToMove(result.engineMove!));
-            if (engineMoveResult) {
-              playSfx(getMoveSound(engineMoveResult.flags, engineMoveResult.captured, afterEngine, false), globalMuted);
-              setGame(afterEngine);
-              setFen(afterEngine.fen());
-              if (afterEngine.isGameOver()) {
-                const r = detectResult(afterEngine);
-                void concludeGame(r, getGameOverReason(afterEngine));
-                return;
-              }
+
+      const proceed = () => {
+        submitMove(prevFen, moveUci, move.san, timeRemainingSecs)
+          .then(result => applyEngineReply(result, gameCopy));
+      };
+
+      if (teachMode) {
+        void fetch(`${BACKEND_URL}/api/evaluate-premove`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ fen: prevFen, move: moveUci }),
+        })
+          .then(r => r.ok ? r.json() : null)
+          .then((data: { cpl: number; best_move: string; warning: boolean } | null) => {
+            if (data?.warning) {
+              setBoardLocked(false);
+              setPendingMove({ prevFen, gameCopy, moveUci, san: move.san, cpl: data.cpl, bestMove: data.best_move, timeRemainingSecs });
+            } else {
+              proceed();
             }
-            // Engine move applied — start player's clock
-            if (timeControl && timeControl.initialMs > 0) startClock(playerColor);
-            setBoardLocked(false);
-          }, 400);
-        } else {
-          setBoardLocked(false);
-        }
-      });
+          })
+          .catch(() => proceed());
+      } else {
+        proceed();
+      }
+
       return true;
     },
-    [game, submitMove, concludeGame, detectResult, boardLocked, isAnalyzing, playerColor, timeControl, startClock, globalMuted],
+    [game, submitMove, applyEngineReply, boardLocked, isAnalyzing, playerColor, timeControl, startClock, globalMuted, teachMode],
   );
 
   const isLocked = boardLocked || isAnalyzing;
@@ -469,6 +527,14 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
             height={BOARD_WIDTH}
             className="absolute inset-0 pointer-events-none"
           />
+          {pendingMove && (
+            <BlunderConfirmModal
+              cpl={pendingMove.cpl}
+              bestMove={pendingMove.bestMove}
+              onConfirm={handleBlunderConfirm}
+              onCancel={handleBlunderCancel}
+            />
+          )}
           {gameOverPending && (
             <GameOverModal
               result={gameOverPending.result}
@@ -482,11 +548,29 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
         </div>
       </ChessClock>
 
-      {currentOpening && (
-        <p className="mt-2 text-center text-[10px] text-zinc-400 bg-zinc-800/60 rounded px-2 py-1 truncate">
-          {currentOpening}
-        </p>
-      )}
+      {currentOpening && (() => {
+        const entry = findOpeningEntry(currentOpening);
+        return (
+          <>
+            {entry ? (
+              <button
+                onClick={() => setOpeningModalOpen(true)}
+                className="mt-2 w-full text-center text-[10px] text-indigo-400 bg-zinc-800/60 hover:bg-zinc-700/60 rounded px-2 py-1 truncate transition-colors"
+                title="Click to explore this opening"
+              >
+                {currentOpening} ↗
+              </button>
+            ) : (
+              <p className="mt-2 text-center text-[10px] text-zinc-400 bg-zinc-800/60 rounded px-2 py-1 truncate">
+                {currentOpening}
+              </p>
+            )}
+            {openingModalOpen && entry && (
+              <OpeningExplorerModal entry={entry} onClose={() => setOpeningModalOpen(false)} />
+            )}
+          </>
+        );
+      })()}
       {isLocked && (
         <p className="mt-2 text-center text-xs text-zinc-400 animate-pulse">
           {isAnalyzing ? 'Analyzing…' : 'Opponent is thinking…'}

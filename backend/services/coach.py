@@ -252,3 +252,43 @@ def generate_coach_report(
     report: dict = _json.loads(content)
     report["estimated_performance_rating"] = _acpl_to_elo(avg_cpl)
     return report
+
+
+def explain_opponent_move(
+    fen_before: str,
+    engine_move_uci: str,
+    persona_id: str,
+) -> str:
+    """Generates a persona-voiced explanation of why the AI played its last move."""
+    import chess as _chess
+    persona = get_persona(persona_id)
+
+    board = _chess.Board(fen_before)
+    move = _chess.Move.from_uci(engine_move_uci)
+    try:
+        san = board.san(move)
+    except Exception:
+        san = engine_move_uci
+
+    prompt = (
+        f"You just played {san} against your opponent. "
+        "In 2–3 sentences, explain why this was a strong move — "
+        "speak in first person, in character, concise and direct."
+    )
+    messages = [
+        SystemMessage(content=persona.system_prompt),
+        HumanMessage(content=prompt),
+    ]
+    t0 = time.perf_counter()
+    try:
+        response = _get_llm().invoke(messages)
+        latency_ms = (time.perf_counter() - t0) * 1000
+        tokens = (
+            getattr(response, "usage_metadata", {}).get("total_tokens", 0)
+            if hasattr(response, "usage_metadata") else 0
+        )
+        record_latency("groq", latency_ms, tokens=tokens)
+        return str(response.content).strip()
+    except Exception:
+        record_error("groq", (time.perf_counter() - t0) * 1000)
+        raise

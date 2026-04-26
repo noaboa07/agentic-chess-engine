@@ -156,17 +156,23 @@ export default function ProfilePage() {
             <div className="rounded-xl border border-zinc-800 overflow-hidden">
               {profile.recentGames.map((g, i) => (
                 <div
-                  key={i}
+                  key={g.id}
                   className={`flex items-center justify-between px-4 py-3 text-sm ${
                     i < profile.recentGames.length - 1 ? 'border-b border-zinc-800' : ''
                   }`}
                 >
-                  <span className="text-zinc-300">{formatPersonaName(g.opponent_id)}</span>
-                  <span className={`font-semibold capitalize ${RESULT_STYLES[g.result] ?? 'text-zinc-400'}`}>
+                  <span className="text-zinc-300 flex-1">{formatPersonaName(g.opponent_id)}</span>
+                  <span className={`font-semibold capitalize w-20 text-center ${RESULT_STYLES[g.result] ?? 'text-zinc-400'}`}>
                     {g.result}
                   </span>
-                  <span className="text-zinc-600 text-xs">{g.time_control ?? 'Untimed'}</span>
-                  <span className="text-zinc-600 text-xs">{formatDate(g.played_at)}</span>
+                  <span className="text-zinc-600 text-xs w-16 text-center">{g.time_control ?? 'Untimed'}</span>
+                  <span className="text-zinc-600 text-xs w-24 text-center">{formatDate(g.played_at)}</span>
+                  <Link
+                    href={`/replay/${g.id}`}
+                    className="text-xs text-indigo-400 hover:text-indigo-300 hover:underline w-12 text-right transition-colors"
+                  >
+                    Replay
+                  </Link>
                 </div>
               ))}
             </div>
