@@ -2,6 +2,7 @@
 
 import { createContext, useContext, useState, useCallback, useEffect, useRef, type ReactNode } from 'react';
 import { useAuth } from './AuthContext';
+import { useAchievements } from './AchievementContext';
 import { saveGame, saveCoachReport, getModeElo, getModeGameCount, updateModeElo, updateGameEloAfter, getUserBlunderPatterns, getRecentGames, savePuzzles, type EloMode, type CoachReportData, type RecentGame } from '../../lib/db';
 import { detectOpeningFull } from '../../lib/openings';
 
@@ -183,6 +184,7 @@ interface GameState {
   fenBeforeEngineMove: string | null;
   opponentExplanation: string | null;
   isExplainingOpponent: boolean;
+  rateLimitError: string | null;
 }
 
 const randomColor = (): PlayerColor => (Math.random() < 0.5 ? 'white' : 'black');
@@ -211,6 +213,7 @@ const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' 
   fenBeforeEngineMove: null,
   opponentExplanation: null,
   isExplainingOpponent: false,
+  rateLimitError: null,
 };
 
 export interface SubmitMoveResult {
@@ -237,6 +240,7 @@ interface GameContextValue extends GameState {
   adaptiveSuggestion: AdaptiveSuggestion | null;
   explainMove: (fen: string, candidateUci: string) => Promise<void>;
   explainOpponentMove: () => Promise<void>;
+  clearRateLimitError: () => void;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -245,6 +249,9 @@ const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:800
 
 export function GameProvider({ children }: { children: ReactNode }) {
   const { user } = useAuth();
+  const { awardAchievement } = useAchievements();
+  const awardAchievementRef = useRef(awardAchievement);
+  awardAchievementRef.current = awardAchievement;
 
   const [state, setState] = useState<GameState>({
     ...FRESH_GAME_STATE,
@@ -364,6 +371,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           opening_name: shouldSendTip ? stateRef.current.currentOpening : null,
         }),
       });
+      if (res.status === 429) {
+        setState(prev => ({ ...prev, isAnalyzing: false, rateLimitError: 'Too many requests — please wait a moment before moving.' }));
+        return null;
+      }
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
       const data: ApiMoveResponse = await res.json();
 
@@ -422,6 +433,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
           hint_requested: true,
         }),
       });
+      if (res.status === 429) {
+        setState(prev => ({ ...prev, isAnalyzing: false, rateLimitError: 'Too many requests — please wait a moment.' }));
+        return;
+      }
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
       const data: ApiMoveResponse = await res.json();
       setState(prev => ({
@@ -487,6 +502,27 @@ export function GameProvider({ children }: { children: ReactNode }) {
             move_number: parseInt(m.fen.split(' ')[5] ?? '1', 10),
           }));
         if (puzzles.length > 0) savePuzzles(user.id, gameId, puzzles).catch(() => {});
+
+        // ── Achievement checks ──────────────────────────────────────────────
+        const award = (id: string, meta?: Record<string, unknown>) =>
+          awardAchievementRef.current(user.id, id, meta).catch(() => {});
+
+        if (gameOverPending.result === 'win') {
+          void award('first_blood');
+          const hasBlunder = moveLog.some(m => m.classification === 'blunder');
+          if (!hasBlunder) {
+            void award('no_mercy');
+            void award('blunder_breaker');
+          }
+          const hasMistakeOrBlunder = moveLog.some(
+            m => m.classification === 'blunder' || m.classification === 'mistake',
+          );
+          if (hasMistakeOrBlunder) void award('survivor');
+          if (moveLog.length > 40) void award('endgame_cleaner');
+          const wasDown = moveLog.some(m => m.evaluation !== null && m.evaluation <= -300);
+          if (wasDown) void award('comeback_king');
+        }
+        // ───────────────────────────────────────────────────────────────────
       } catch (err) {
         console.error('Failed to save game:', err);
       }
@@ -589,6 +625,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ fen_before: fenBefore, engine_move: uci, persona_id: persona }),
       });
+      if (res.status === 429) {
+        setState(prev => ({ ...prev, isExplainingOpponent: false, rateLimitError: 'Too many requests — please wait a moment.' }));
+        return;
+      }
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
       const data = await res.json() as { explanation: string };
       setState(prev => ({ ...prev, opponentExplanation: data.explanation, isExplainingOpponent: false }));
@@ -624,6 +664,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const intensity = computeIntensity(state.moveHistory);
   const activePersona = PERSONAS.find(p => p.id === state.persona) ?? PERSONAS[0];
 
+  const clearRateLimitError = useCallback(() => {
+    setState(prev => ({ ...prev, rateLimitError: null }));
+  }, []);
+
   return (
     <GameContext.Provider value={{
       ...state,
@@ -646,6 +690,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
       adaptiveSuggestion: state.adaptiveSuggestion,
       explainMove,
       explainOpponentMove,
+      clearRateLimitError,
     }}>
       {children}
     </GameContext.Provider>

@@ -5,12 +5,15 @@ import { Chessboard } from 'react-chessboard';
 import { Chess } from 'chess.js';
 import type { Square } from 'chess.js';
 import { useGame, type GameResult } from '../context/GameContext';
+import { useAuth } from '../context/AuthContext';
+import { useAchievements } from '../context/AchievementContext';
 import ChessClock from './ChessClock';
 import { playSfx, preloadSfx, type SfxName } from '../../lib/audio';
 import { getStoredThemeId, getThemeById } from '../../lib/themes';
 import GameOverModal from './GameOverModal';
 import BlunderConfirmModal from './BlunderConfirmModal';
 import OpeningExplorerModal from './OpeningExplorerModal';
+import Toast from './Toast';
 import { findOpeningEntry } from '../../lib/openings-explorer';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
@@ -184,8 +187,11 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
     boardResetToken, playerColor, flipPlayerColor,
     moveCount, activePersona, takeBack, takeBackToken, teachMode,
     currentOpening, startClock, timeControl, globalMuted, gameOverPending,
-    explainMove,
+    explainMove, rateLimitError, clearRateLimitError,
   } = useGame();
+
+  const { user } = useAuth();
+  const { awardAchievement } = useAchievements();
 
   const globalMutedRef = useRef(globalMuted);
   globalMutedRef.current = globalMuted;
@@ -487,6 +493,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
   const playerPiecePrefix = playerColor === 'white' ? 'w' : 'b';
 
   return (
+    <>
     <div className="w-full max-w-[560px]">
       {moveCount === 0 && (
         <button
@@ -554,7 +561,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
           <>
             {entry ? (
               <button
-                onClick={() => setOpeningModalOpen(true)}
+                onClick={() => { setOpeningModalOpen(true); if (user) void awardAchievement(user.id, 'opening_student'); }}
                 className="mt-2 w-full text-center text-[10px] text-indigo-400 bg-zinc-800/60 hover:bg-zinc-700/60 rounded px-2 py-1 truncate transition-colors"
                 title="Click to explore this opening"
               >
@@ -585,5 +592,9 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
         </button>
       )}
     </div>
+    {rateLimitError && (
+      <Toast message={rateLimitError} type="error" onDismiss={clearRateLimitError} />
+    )}
+    </>
   );
 }

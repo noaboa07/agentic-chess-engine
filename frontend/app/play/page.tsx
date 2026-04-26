@@ -5,7 +5,8 @@ import { useRouter, useSearchParams } from 'next/navigation';
 import dynamic from 'next/dynamic';
 import { useAuth } from '../context/AuthContext';
 import { useGame, PERSONAS, type PersonaId, type TimeControl } from '../context/GameContext';
-import { completePersona, unlockPersona } from '../../lib/db';
+import { useAchievements } from '../context/AchievementContext';
+import { completePersona, unlockPersona, getCampaignProgress } from '../../lib/db';
 import LobbyScreen from '../components/LobbyScreen';
 import PersonaPanel from '../components/PersonaPanel';
 import CoachPanel from '../components/CoachPanel';
@@ -23,6 +24,7 @@ function PlayPageInner() {
   const searchParams = useSearchParams();
   const campaignPersonaId = searchParams.get('campaign') as PersonaId | null;
   const { user } = useAuth();
+  const { awardAchievement } = useAchievements();
   const { setPersona, setTimeControl, setTeachMode, coachReport, dismissCoachReport, gameOverPending } = useGame();
   const campaignUpdatedRef = useRef(false);
 
@@ -36,18 +38,29 @@ function PlayPageInner() {
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
-  // Update campaign progress on win
+  // Update campaign progress and award achievements on campaign win
   useEffect(() => {
     if (!campaignPersonaId || !user || !gameOverPending || campaignUpdatedRef.current) return;
     if (gameOverPending.result !== 'win') return;
     campaignUpdatedRef.current = true;
     const idx = PERSONAS.findIndex(p => p.id === campaignPersonaId);
     const next = PERSONAS[idx + 1];
-    void Promise.all([
-      completePersona(user.id, campaignPersonaId),
-      next ? unlockPersona(user.id, next.id) : Promise.resolve(),
-    ]);
-  }, [gameOverPending, campaignPersonaId, user]);
+    void (async () => {
+      await Promise.all([
+        completePersona(user.id, campaignPersonaId),
+        next ? unlockPersona(user.id, next.id) : Promise.resolve(),
+      ]);
+      void awardAchievement(user.id, 'boss_slayer');
+      if (campaignPersonaId === 'god_noah') void awardAchievement(user.id, 'god_slayer');
+      try {
+        const progress = await getCampaignProgress(user.id);
+        const completed = Object.values(progress).filter(s => s === 'complete').length;
+        if (completed >= 5) void awardAchievement(user.id, 'ladder_climber');
+      } catch {
+        // Non-fatal — achievement check failure doesn't break campaign flow
+      }
+    })();
+  }, [gameOverPending, campaignPersonaId, user, awardAchievement]);
 
   const handleStartGame = useCallback((
     personaId: PersonaId,

@@ -23,7 +23,7 @@
 
 Most chess apps give you a difficulty slider. The Noah Verse gives you **13 distinct opponents** — each a fully realized AI agent with its own personality, communication style, and strategic identity. From a blunder-prone chaos machine at 150 Elo to an all-knowing 2700-rated deity, every agent is backed by a Stockfish engine profile and an LLM that generates real-time coaching, trash talk, post-game analysis, and multi-agent move debates — all in character.
 
-Beyond head-to-head play, the platform is a complete chess training system: a campaign progression ladder, game history replay with move-by-move evaluation, a progress dashboard with CPL trends and weakness heatmaps, an auto-generated puzzle feed from your own blunders, and a personalized training plan — all without leaving the app.
+Beyond head-to-head play, the platform is a complete chess training system: a campaign progression ladder with tier groupings and pre-fight briefings, game history replay with move-by-move evaluation, a progress dashboard with CPL trends and weakness heatmaps, an auto-generated puzzle feed from your own blunders, a personalized training plan, and a 15-achievement badge system — all without leaving the app. A fully static `/demo` route lets recruiters explore the platform without signing in.
 
 ---
 
@@ -74,6 +74,51 @@ A linear unlock ladder lets you climb through all 13 personas with structured le
 | God Noah | Full game mastery |
 
 **Unlock logic:** Roomba Noah is always available. Win against a persona to unlock the next one. Progress is stored in Supabase (`campaign_progress` table, RLS-enforced) and persists across sessions. Campaign games auto-start in Teach Mode with no time control.
+
+**Tier groupings:** The campaign ladder is divided into five named tiers — Beginner Chaos, Fundamentals, Tactical Arena, Positional Masters, and Final Bosses — with visual connector lines between cards that turn emerald as you clear each tier.
+
+**Pre-fight briefing:** Clicking "Fight Boss" opens a `BossFightModal` showing the persona's lesson focus, a "Watch Out" tip, and the reward before you commit. "Start Fight" navigates directly to the game.
+
+---
+
+### 🏅 Achievement System
+
+15 earnable badges across four tiers (Bronze → Silver → Gold → Platinum). Achievements are stored in Supabase (`user_achievements`, RLS-enforced) and unlock is idempotent — duplicate unlocks are silently ignored.
+
+| ID | Title | Tier | Trigger |
+|---|---|---|---|
+| first_blood | First Blood | Bronze | Win your first game |
+| no_mercy | No Mercy | Silver | Win with zero blunders |
+| survivor | Survivor | Bronze | Win despite mistakes or blunders |
+| blunder_breaker | Blunder Breaker | Silver | Win with zero blunders (mistakes OK) |
+| endgame_cleaner | Endgame Cleaner | Silver | Win a game longer than 40 moves |
+| comeback_king | Comeback King | Gold | Win from a position with eval ≤ −300 |
+| time_survivor | Time Survivor | Gold | Win with less than 10 seconds remaining |
+| puzzle_solver | Puzzle Solver | Bronze | Solve your first puzzle |
+| tactic_finder | Tactic Finder | Silver | Solve 10 puzzles |
+| boss_slayer | Boss Slayer | Silver | Win any campaign fight |
+| ladder_climber | Ladder Climber | Gold | Complete 5 or more campaign bosses |
+| god_slayer | God Slayer | Platinum | Beat God Noah |
+| scholar | Scholar | Bronze | View any game replay |
+| opening_student | Opening Student | Bronze | Open the Opening Explorer |
+| coachable | Coachable | Silver | Request "Explain last move" 5 times |
+
+When a new achievement is unlocked, an `AchievementToast` slides in from the bottom-right with the icon, tier badge, title, and description. It auto-dismisses after 4 seconds. Guest users (null `userId`) are silently skipped.
+
+The **Profile** page shows the full 5×3 achievement grid — earned badges are fully colored with tier label; locked badges are dimmed to 30% opacity.
+
+---
+
+### 🎮 Demo Mode
+
+`/demo` is a fully static page requiring no authentication. It shows recruiters and first-time visitors four tabs of hardcoded sample data:
+
+- **Dashboard** — stat cards, SVG Elo history chart, training recommendations
+- **Weaknesses** — move quality breakdown bars and key weakness bullets
+- **Puzzles** — two read-only board positions with revealed best moves
+- **Replay** — interactive move list stepping through a sample game
+
+An amber banner at the top explains the data is a demo and links to sign-in.
 
 ---
 
@@ -320,7 +365,10 @@ First-time visitors to `/play` see a 5-step spotlight tutorial explaining the pe
 ### 🛡 Production Polish
 
 - **Guest mode** — `/play` is accessible without an account. Guest games are fully functional; Elo and history are not persisted. An amber banner in the coach panel prompts sign-in.
-- **Rate limiting** — `slowapi` middleware on the FastAPI backend: `/api/move` and `/api/evaluate-premove` at 60 req/min per IP; `/api/coach-report`, `/api/explain-move`, and `/api/explain-opponent-move` at 20 req/min per IP. Returns 429 with JSON error on breach.
+- **Rate limiting** — `slowapi` middleware on the FastAPI backend: `/api/move` and `/api/evaluate-premove` at 60 req/min per IP; `/api/coach-report`, `/api/explain-move`, and `/api/explain-opponent-move` at 20 req/min per IP. Returns 429 with JSON error on breach. The frontend detects 429 on `/api/move`, `requestHint`, and `explainOpponentMove` and surfaces a dismissible `Toast` error instead of crashing.
+- **Toast notifications** — a reusable `Toast` component (error / info / success) slides in from the bottom-center, auto-dismisses after 5 seconds, and is used for rate-limit errors and other transient messages.
+- **Empty states** — a reusable `EmptyState` component (icon + title + body + CTA) replaces ad-hoc "no data" blocks on the Dashboard and Puzzles pages.
+- **Resigned = loss** — profile stats and win-rate calculations treat `resigned` results as losses via an `isLoss()` helper, matching the semantic intent.
 - **Global error boundary** — Next.js 14 `app/error.tsx` catches unhandled render errors and presents a recoverable "Try again" screen.
 - **Opening recognition** — Live ECO detection using an embedded lookup. Badge updates after every move.
 
@@ -340,9 +388,10 @@ First-time visitors to `/play` see a 5-step spotlight tutorial explaining the pe
 │  │  Puzzles │ │  Replay   │ │ Profile  │                             │
 │  └──────────┘ └───────────┘ └──────────┘                             │
 │                        │                                              │
-│               GameContext (React)                                     │
+│     GameContext + AchievementContext (React)                          │
 │    move log · eval · classification · opening · debate                │
 │    deferred game-over · adaptive suggestion · campaign state          │
+│    15 achievements · rate-limit error · toast coordination            │
 └───────────────────────────┬──────────────────────────────────────────┘
                             │ HTTP REST (rate-limited via slowapi)
 ┌───────────────────────────▼──────────────────────────────────────────┐
@@ -366,6 +415,7 @@ First-time visitors to `/play` see a 5-step spotlight tutorial explaining the pe
                │  users · games           │
                │  campaign_progress       │
                │  puzzles                 │
+               │  user_achievements       │
                │  RLS on all tables       │
                └──────────────────────────┘
 ```
@@ -553,6 +603,18 @@ CREATE POLICY "Users manage own campaign" ON public.campaign_progress
 CREATE POLICY "Users manage own puzzles" ON public.puzzles
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
+-- Achievements
+CREATE TABLE public.user_achievements (
+  user_id UUID REFERENCES public.users(id) ON DELETE CASCADE NOT NULL,
+  achievement_id TEXT NOT NULL,
+  unlocked_at TIMESTAMPTZ NOT NULL DEFAULT NOW(),
+  metadata JSONB,
+  PRIMARY KEY (user_id, achievement_id)
+);
+ALTER TABLE public.user_achievements ENABLE ROW LEVEL SECURITY;
+CREATE POLICY "Users manage own achievements" ON public.user_achievements
+  USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
+
 -- Seed first campaign persona for all existing users
 INSERT INTO public.campaign_progress (user_id, persona_id, status)
   SELECT id, 'roomba_noah', 'available' FROM public.users
@@ -626,20 +688,25 @@ agentic-chess-engine/
 │       └── test_agent_config.py
 └── frontend/
     ├── app/
-    │   ├── page.tsx                   # Landing page (nav to all sections)
+    │   ├── page.tsx                   # Landing page — hero, feature strip, CTAs, nav
     │   ├── error.tsx                  # Global error boundary
+    │   ├── demo/page.tsx              # Static demo (no auth) — Dashboard/Weaknesses/Puzzles/Replay tabs
     │   ├── play/page.tsx              # Lobby ↔ game phase controller, campaign auto-start
-    │   ├── campaign/page.tsx          # Persona ladder with unlock status
+    │   ├── campaign/page.tsx          # Tiered persona ladder, BossFightModal, unlock status
     │   ├── dashboard/page.tsx         # Stats, charts, training plan
     │   ├── puzzles/page.tsx           # Blunder puzzle feed
     │   ├── replay/[gameId]/page.tsx   # Move-by-move game replay viewer
-    │   ├── profile/page.tsx           # Stats, history, replay links
+    │   ├── profile/page.tsx           # Stats, bosses defeated, achievements grid, history
     │   ├── settings/page.tsx          # Board theme picker
     │   ├── shop/page.tsx              # Elo-gated theme gallery
     │   ├── components/
     │   │   ├── ChessBoard.tsx         # Board, arrows, premove blunder check, opening explorer
     │   │   ├── CoachPanel.tsx         # Coaching, eval, debate, explain, guest banner
+    │   │   ├── AchievementToast.tsx   # Slide-in achievement unlock notification
+    │   │   ├── BossFightModal.tsx     # Pre-fight briefing modal for campaign bosses
     │   │   ├── BlunderConfirmModal.tsx # Pre-move blunder warning dialog
+    │   │   ├── EmptyState.tsx         # Reusable empty-state with icon + CTA
+    │   │   ├── Toast.tsx              # Dismissible error/info/success toast
     │   │   ├── EvalBar.tsx            # Vertical SVG evaluation bar
     │   │   ├── OnboardingOverlay.tsx  # First-visit 5-step tutorial
     │   │   ├── OpeningExplorerModal.tsx # Static opening reference modal
@@ -650,9 +717,11 @@ agentic-chess-engine/
     │   │   ├── WeaknessPanel.tsx      # Recurring mistake tracker
     │   │   └── AtmosphereBackground.tsx # Crossfade music + vignette
     │   └── context/
-    │       ├── GameContext.tsx        # Full game state + campaign + puzzles
-    │       └── AuthContext.tsx        # Supabase auth gate
+    │       ├── GameContext.tsx        # Full game state + campaign + puzzles + rate-limit error
+    │       ├── AuthContext.tsx        # Supabase auth gate
+    │       └── AchievementContext.tsx # Achievement unlock + toast coordination
     └── lib/
+        ├── achievements.ts            # 15 achievement definitions, TIER_COLORS, TIER_BG
         ├── themes.ts                  # 10 board themes, localStorage
         ├── db.ts                      # All Supabase queries (RLS-enforced)
         ├── audio.ts                   # SFX singleton manager

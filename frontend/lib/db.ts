@@ -1,6 +1,10 @@
 import { supabase } from './supabase';
 import type { MoveRecord, GameResult } from '../app/context/GameContext';
 
+export function isLoss(result: GameResult): boolean {
+  return result === 'loss' || result === 'resigned';
+}
+
 export type EloMode = 'Untimed' | 'Bullet' | 'Blitz' | 'Rapid' | 'Classical';
 
 const ELO_COL: Record<EloMode, string> = {
@@ -277,7 +281,6 @@ export interface UserProfile {
   wins: number;
   losses: number;
   draws: number;
-  resigned: number;
   recentGames: Array<{
     id: string;
     opponent_id: string;
@@ -311,10 +314,9 @@ export async function getUserProfile(userId: string): Promise<UserProfile | null
     username: row.username,
     currentElo: row.current_elo,
     totalGames: games.length,
-    wins:     games.filter(g => g.result === 'win').length,
-    losses:   games.filter(g => g.result === 'loss').length,
-    draws:    games.filter(g => g.result === 'draw').length,
-    resigned: games.filter(g => g.result === 'resigned').length,
+    wins:   games.filter(g => g.result === 'win').length,
+    losses: games.filter(g => isLoss(g.result as GameResult)).length,
+    draws:  games.filter(g => g.result === 'draw').length,
     recentGames: games.slice(0, 10),
   };
 }
@@ -458,6 +460,33 @@ export interface DashboardGame {
   played_at: string;
   player_elo_after: number | null;
   time_control: string | null;
+}
+
+// ── Achievements ──────────────────────────────────────────────────────────────
+
+export async function getUnlockedAchievements(userId: string): Promise<string[]> {
+  const { data, error } = await supabase
+    .from('user_achievements')
+    .select('achievement_id')
+    .eq('user_id', userId);
+  if (error) throw error;
+  return (data ?? []).map((r: { achievement_id: string }) => r.achievement_id);
+}
+
+export async function unlockAchievement(
+  userId: string,
+  achievementId: string,
+  metadata?: Record<string, unknown>,
+): Promise<boolean> {
+  const { error, count } = await supabase
+    .from('user_achievements')
+    .upsert(
+      { user_id: userId, achievement_id: achievementId, metadata: metadata ?? null },
+      { onConflict: 'user_id,achievement_id', ignoreDuplicates: true },
+    )
+    .select();
+  if (error) throw error;
+  return (count ?? 0) > 0;
 }
 
 export async function getDashboardGames(userId: string, limit = 50): Promise<DashboardGame[]> {

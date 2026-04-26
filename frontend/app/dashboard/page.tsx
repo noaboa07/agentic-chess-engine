@@ -4,6 +4,7 @@ import { useEffect, useMemo, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
 import { getDashboardGames, type DashboardGame } from '../../lib/db';
+import EmptyState from '../components/EmptyState';
 import type { MoveClassification } from '../context/GameContext';
 
 // ── Simple SVG line chart ────────────────────────────────────────────────────
@@ -166,14 +167,14 @@ export default function DashboardPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <main className="h-full overflow-y-auto bg-zinc-950 flex items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-200" />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
+    <main className="h-full overflow-y-auto bg-zinc-950 text-white">
       <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/" className="text-sm text-zinc-400 hover:text-white transition-colors">← Back</Link>
@@ -187,10 +188,13 @@ export default function DashboardPage() {
         )}
 
         {!stats ? (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-10 text-center">
-            <p className="text-zinc-400 text-sm">No games recorded yet.</p>
-            <Link href="/play" className="mt-3 inline-block text-indigo-400 hover:underline text-sm">Play your first game →</Link>
-          </div>
+          <EmptyState
+            icon="♟️"
+            title="No games recorded yet"
+            body="Play your first game to unlock personalized stats, CPL trends, and training recommendations."
+            ctaLabel="Play Now"
+            ctaHref="/play"
+          />
         ) : (
           <div className="space-y-6">
             {/* Summary cards */}

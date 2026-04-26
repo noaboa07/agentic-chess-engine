@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from 'react';
 import { useGame, type Evaluation, type MoveClassification } from '../context/GameContext';
 import { useAuth } from '../context/AuthContext';
+import { useAchievements } from '../context/AchievementContext';
 import LeaderboardModal from './LeaderboardModal';
 import WeaknessPanel from './WeaknessPanel';
 import DebatePanel from './DebatePanel';
@@ -65,6 +66,7 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
   const [showLeaderboard, setShowLeaderboard] = useState(false);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const { signOut, user } = useAuth();
+  const { awardAchievement } = useAchievements();
   const {
     evaluation, lastClassification, bestMove, coachMessage,
     isAnalyzing, teachMode, lastMoveContext, requestHint,
@@ -222,7 +224,14 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
           )}
           {teachMode && lastMoveContext && (
             <button
-              onClick={() => void requestHint()}
+              onClick={() => {
+                void requestHint();
+                if (user) {
+                  const count = (parseInt(localStorage.getItem('noahverse_explain_count') ?? '0', 10) || 0) + 1;
+                  localStorage.setItem('noahverse_explain_count', String(count));
+                  if (count >= 5) void awardAchievement(user.id, 'coachable');
+                }
+              }}
               className="mt-1 w-full rounded-md bg-zinc-700 px-4 py-2 text-xs font-medium text-zinc-200 hover:bg-zinc-600 transition-colors"
             >
               Explain last move

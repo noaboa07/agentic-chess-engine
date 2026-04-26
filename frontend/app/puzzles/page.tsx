@@ -5,7 +5,9 @@ import Link from 'next/link';
 import dynamic from 'next/dynamic';
 import type { Square } from 'chess.js';
 import { useAuth } from '../context/AuthContext';
+import { useAchievements } from '../context/AchievementContext';
 import { getPuzzles, markPuzzleSolved, type PuzzleRow } from '../../lib/db';
+import EmptyState from '../components/EmptyState';
 
 const Chessboard = dynamic(
   () => import('react-chessboard').then(m => m.Chessboard),
@@ -20,6 +22,7 @@ function formatClass(cls: string) {
 
 export default function PuzzlesPage() {
   const { user } = useAuth();
+  const { awardAchievement } = useAchievements();
   const [puzzles, setPuzzles] = useState<PuzzleRow[]>([]);
   const [loading, setLoading] = useState(true);
   const [index, setIndex] = useState(0);
@@ -47,6 +50,9 @@ export default function PuzzlesPage() {
         setShownMove(null);
         if (!puzzle.solved && user) {
           markPuzzleSolved(puzzle.id).catch(() => {});
+          const solvedBefore = puzzles.filter(p => p.solved).length;
+          if (solvedBefore === 0) void awardAchievement(user.id, 'puzzle_solver');
+          if (solvedBefore === 9) void awardAchievement(user.id, 'tactic_finder');
           setPuzzles(prev => prev.map((p, i) => i === index ? { ...p, solved: true } : p));
         }
       } else {
@@ -55,7 +61,7 @@ export default function PuzzlesPage() {
       }
       return isCorrect;
     },
-    [puzzle, puzzleState, index, user],
+    [puzzle, puzzleState, index, user, puzzles, awardAchievement],
   );
 
   const handleNext = useCallback(() => {
@@ -78,14 +84,14 @@ export default function PuzzlesPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <main className="h-full overflow-y-auto bg-zinc-950 flex items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-200" />
       </main>
     );
   }
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
+    <main className="h-full overflow-y-auto bg-zinc-950 text-white">
       <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="flex items-center gap-4 mb-8">
           <Link href="/" className="text-sm text-zinc-400 hover:text-white transition-colors">← Back</Link>
@@ -102,13 +108,13 @@ export default function PuzzlesPage() {
         )}
 
         {user && puzzles.length === 0 && (
-          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-10 text-center">
-            <p className="text-zinc-400 text-sm">No puzzles yet.</p>
-            <p className="text-zinc-600 text-xs mt-1">Puzzles are generated automatically after each game.</p>
-            <Link href="/play" className="mt-3 inline-block text-indigo-400 hover:underline text-sm">
-              Play a game to generate puzzles →
-            </Link>
-          </div>
+          <EmptyState
+            icon="🧩"
+            title="No puzzles yet"
+            body="Puzzles are generated automatically from your blunders after each game. Play a game to get started."
+            ctaLabel="Play a Game"
+            ctaHref="/play"
+          />
         )}
 
         {puzzle && (

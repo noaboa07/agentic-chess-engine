@@ -8,6 +8,8 @@ import { Chess } from 'chess.js';
 import { getGameById, type GameRow } from '../../../lib/db';
 import EvalBar from '../../components/EvalBar';
 import type { MoveClassification } from '../../context/GameContext';
+import { useAuth } from '../../context/AuthContext';
+import { useAchievements } from '../../context/AchievementContext';
 
 const CLASSIFICATION_COLORS: Record<MoveClassification, string> = {
   brilliant: 'text-cyan-400 bg-cyan-400/10',
@@ -30,13 +32,20 @@ export default function ReplayPage() {
   const [loading, setLoading] = useState(true);
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
+  const { user } = useAuth();
+  const { awardAchievement } = useAchievements();
 
   useEffect(() => {
     if (!gameId) return;
     getGameById(gameId)
-      .then(g => { setGame(g); setCurrentIndex(-1); })
+      .then(g => {
+        setGame(g);
+        setCurrentIndex(-1);
+        if (g && user) void awardAchievement(user.id, 'scholar');
+      })
       .catch(() => setGame(null))
       .finally(() => setLoading(false));
+  // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [gameId]);
 
   useEffect(() => {
@@ -57,7 +66,7 @@ export default function ReplayPage() {
 
   if (loading) {
     return (
-      <main className="min-h-screen bg-zinc-950 flex items-center justify-center">
+      <main className="h-full overflow-y-auto bg-zinc-950 flex items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-200" />
       </main>
     );
@@ -65,7 +74,7 @@ export default function ReplayPage() {
 
   if (!game) {
     return (
-      <main className="min-h-screen bg-zinc-950 text-white flex flex-col items-center justify-center gap-4">
+      <main className="h-full overflow-y-auto bg-zinc-950 text-white flex flex-col items-center justify-center gap-4">
         <p className="text-zinc-400">Game not found.</p>
         <Link href="/profile" className="text-indigo-400 hover:underline text-sm">← Back to Profile</Link>
       </main>
@@ -76,7 +85,7 @@ export default function ReplayPage() {
   const boardFen = currentMove?.fen ?? INITIAL_FEN;
 
   return (
-    <main className="min-h-screen bg-zinc-950 text-white">
+    <main className="h-full overflow-y-auto bg-zinc-950 text-white">
       <div className="mx-auto max-w-5xl px-6 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6 flex-wrap">

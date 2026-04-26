@@ -3,7 +3,8 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import { useAuth } from '../context/AuthContext';
-import { getUserProfile, updateUsername, type UserProfile } from '../../lib/db';
+import { getUserProfile, updateUsername, getUnlockedAchievements, getCampaignProgress, type UserProfile } from '../../lib/db';
+import { ACHIEVEMENTS, TIER_COLORS, TIER_BG } from '../../lib/achievements';
 
 const RESULT_STYLES: Record<string, string> = {
   win:      'text-emerald-400',
@@ -28,6 +29,8 @@ export default function ProfilePage() {
   const [draftName, setDraftName] = useState('');
   const [saving, setSaving] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
+  const [unlockedIds, setUnlockedIds] = useState<string[]>([]);
+  const [bossesDefeated, setBossesDefeated] = useState(0);
 
   useEffect(() => {
     if (!user) return;
@@ -38,6 +41,10 @@ export default function ProfilePage() {
       })
       .catch(() => setProfile(null))
       .finally(() => setLoading(false));
+    getUnlockedAchievements(user.id).then(setUnlockedIds).catch(() => {});
+    getCampaignProgress(user.id)
+      .then(prog => setBossesDefeated(Object.values(prog).filter(s => s === 'complete').length))
+      .catch(() => {});
   }, [user]);
 
   async function handleSaveName() {
@@ -57,7 +64,7 @@ export default function ProfilePage() {
 
   if (loading) {
     return (
-      <main className="min-h-full bg-zinc-950 flex items-center justify-center">
+      <main className="h-full overflow-y-auto bg-zinc-950 flex items-center justify-center">
         <div className="h-6 w-6 animate-spin rounded-full border-2 border-zinc-700 border-t-zinc-200" />
       </main>
     );
@@ -65,7 +72,7 @@ export default function ProfilePage() {
 
   if (!profile) {
     return (
-      <main className="min-h-full bg-zinc-950 text-white flex flex-col items-center justify-center gap-4">
+      <main className="h-full overflow-y-auto bg-zinc-950 text-white flex flex-col items-center justify-center gap-4">
         <p className="text-zinc-400">Could not load profile.</p>
         <Link href="/" className="text-indigo-400 hover:underline text-sm">← Back to Home</Link>
       </main>
@@ -77,7 +84,7 @@ export default function ProfilePage() {
     : 0;
 
   return (
-    <main className="min-h-full bg-zinc-950 text-white">
+    <main className="h-full overflow-y-auto bg-zinc-950 text-white">
       <div className="mx-auto max-w-2xl px-6 py-10">
         {/* Header */}
         <div className="mb-8 flex items-center gap-4">
@@ -135,11 +142,10 @@ export default function ProfilePage() {
         </div>
 
         {/* Stats row */}
-        <div className="grid grid-cols-4 gap-3 mb-6">
+        <div className="grid grid-cols-3 gap-3 mb-3">
           {[
             { label: 'Games', value: profile.totalGames, color: 'text-white' },
             { label: 'Wins',  value: profile.wins,       color: 'text-emerald-400' },
-            { label: 'Losses',value: profile.losses,     color: 'text-red-400' },
             { label: 'Win %', value: `${winRate}%`,      color: 'text-indigo-400' },
           ].map(stat => (
             <div key={stat.label} className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-center">
@@ -148,10 +154,20 @@ export default function ProfilePage() {
             </div>
           ))}
         </div>
+        <div className="grid grid-cols-2 gap-3 mb-6">
+          <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4 text-center">
+            <p className="text-2xl font-bold text-red-400">{profile.losses}</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5">Losses (incl. resigned)</p>
+          </div>
+          <div className="rounded-xl border border-amber-800/40 bg-amber-950/20 p-4 text-center">
+            <p className="text-2xl font-bold text-amber-400">{bossesDefeated} / 13</p>
+            <p className="text-[11px] text-zinc-500 mt-0.5">Bosses Defeated</p>
+          </div>
+        </div>
 
         {/* Recent games */}
         {profile.recentGames.length > 0 && (
-          <section>
+          <section className="mb-8">
             <h2 className="text-sm font-semibold uppercase tracking-widest text-zinc-400 mb-3">Recent Games</h2>
             <div className="rounded-xl border border-zinc-800 overflow-hidden">
               {profile.recentGames.map((g, i) => (
@@ -178,6 +194,38 @@ export default function ProfilePage() {
             </div>
           </section>
         )}
+
+        {/* Achievements */}
+        <section>
+          <div className="flex items-center justify-between mb-3">
+            <h2 className="text-sm font-semibold uppercase tracking-widest text-zinc-400">Achievements</h2>
+            <span className="text-xs text-zinc-600">{unlockedIds.length} / {ACHIEVEMENTS.length} earned</span>
+          </div>
+          <div className="grid grid-cols-5 gap-2">
+            {ACHIEVEMENTS.map(a => {
+              const earned = unlockedIds.includes(a.id);
+              return (
+                <div
+                  key={a.id}
+                  title={`${a.title} — ${a.description}`}
+                  className={`rounded-xl border p-3 flex flex-col items-center gap-1.5 text-center transition-all ${
+                    earned
+                      ? `border-zinc-700 ${TIER_BG[a.tier]} bg-opacity-10`
+                      : 'border-zinc-800 bg-zinc-900/40 opacity-30'
+                  }`}
+                >
+                  <span className="text-2xl">{a.icon}</span>
+                  <p className="text-[10px] font-medium leading-tight text-zinc-300">{a.title}</p>
+                  {earned && (
+                    <span className={`text-[9px] font-semibold uppercase tracking-wide ${TIER_COLORS[a.tier]}`}>
+                      {a.tier}
+                    </span>
+                  )}
+                </div>
+              );
+            })}
+          </div>
+        </section>
       </div>
     </main>
   );
