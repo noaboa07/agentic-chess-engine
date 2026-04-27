@@ -18,21 +18,21 @@ interface BossFightModalProps {
 }
 
 const BOSS_TAUNT: Record<PersonaId, string> = {
-  pawnstorm_petey:             "I'm pushing. That's it. That's the plan.",
-  grizelda_the_greedy:         "Give me your pieces. Give me ALL of them.",
-  brother_oedric:              "I have... all the time... in the world...",
-  sir_vance_the_vain:          "You know what's coming. Let's see if you remembered.",
-  lady_cassandra_bloodwine:    "My family never declined a gambit. Neither will I.",
-  the_hippomancer:             "The Hippo Formation is eternal. You are not.",
-  magister_tobias_the_pedant:  "I have this memorized to move 22. I hope you're in the mainline.",
-  wrathful_vex:                "There's a combination here somewhere. There's ALWAYS a combination.",
-  the_mirror_maiden:           "You won't blunder. You'll just slowly run out of good moves.",
-  lady_vipra_the_coiled:       "I was already winning on the clock before you touched a piece.",
-  boros_the_time_devourer:     "Trade everything. We'll settle this where you're weakest.",
-  the_reaper_of_pawns:         "A pawn is never just a pawn. Give me one and I will take your soul.",
-  oracle_nyx_the_paranoid:     "Whatever you're planning, I've already closed the door.",
-  the_fallen_champion:         "I was the greatest once. I remember how this ends.",
-  dread_hades:                 "I have watched every soul that fell before you. I know exactly where you break.",
+  pawnstorm_petey:          "I'm pushing. That's it. That's the plan.",
+  grizelda_the_greedy:      "Give me your pieces. Give me ALL of them.",
+  brother_oedric:           "I have... all the time... in the world...",
+  sir_vance_the_vain:       "You know what's coming. Let's see if you remembered.",
+  lady_cassandra_bloodwine: "My family never declined a gambit. Neither will I.",
+  the_hippomancer:          "The Hippo Formation is eternal. You are not.",
+  magister_tobias:          "I have this memorized to move 22. I hope you're in the mainline.",
+  wrathful_vex:             "There's a combination here somewhere. There's ALWAYS a combination.",
+  the_mirror_maiden:        "I have no moves of my own. Show me yours.",
+  lady_vipra:               "I will coil around this position until you have nowhere left to breathe.",
+  boros:                    "I have already moved. You just don't know it yet.",
+  the_reaper:               "The middlegame ends. Then we find out who you really are.",
+  oracle_nyx:               "Whatever you're planning, I've already closed the door.",
+  the_fallen_champion:      "I was the greatest once. I remember how this ends.",
+  dread_hades:              "I have watched every soul that fell before you. I know exactly where you break.",
 };
 
 export default function BossFightModal({ personaId, info, onClose }: BossFightModalProps) {

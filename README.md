@@ -46,26 +46,26 @@ Each agent spans a unique slice of the Elo spectrum with hand-crafted personalit
 | General | Elo | Sin | Archetype |
 |---|---|---|---|
 | Sir Vance the Vain | 800 | Vanity | Scholar's Mate every game. Collapses completely if defended. |
-| Lady Cassandra Bloodwine | 1000 | Wrath | All romantic gambits — King's Gambit, Danish, Smith-Morra. |
-| The Hippomancer | 1200 | Sloth | Summons the ancient Hippo Formation. Never breaks it. |
+| Lady Cassandra Bloodwine | 1000 | Lust | All romantic gambits — King's Gambit, Danish, Smith-Morra. |
+| The Hippomancer | 1200 | Stagnation | Summons the ancient Hippo Formation. Never breaks it. |
 
-**Third Descent — The Deep Hells**
+**Third Descent — The Inner Hells**
 
 | General | Elo | Sin | Archetype |
 |---|---|---|---|
 | Magister Tobias the Pedant | 1400 | Pride | 22 moves of mainline theory. Lost in any sideline. |
 | Wrathful Vex | 1600 | Wrath | Forces tactics everywhere. Half are hallucinations. |
-| The Mirror Maiden | 1800 | Envy | Positional grind. Accumulates tiny advantages until you suffocate. |
-| Lady Vipra the Coiled | 2000 | Lust | Premoves everything. Plays for flag. Serpentine speed. |
+| The Mirror Maiden | 1800 | Envy | Mirrors your openings and style back at you. |
+| Lady Vipra the Coiled | 2000 | Cruelty | Pure positional. Slow suffocation over 50+ moves. |
 
-**Fourth Descent — The Abyss**
+**Fourth Descent — Heralds & Throne**
 
 | General | Elo | Sin | Archetype |
 |---|---|---|---|
-| Boros the Time Devourer | 2100 | Gluttony | Trades everything to endgames. Surgical technique. |
-| The Reaper of Pawns | 2300 | Death | Hunts every loose pawn. Converts with clinical precision. |
+| Boros the Time-Devourer | 2100 | Tyranny | Blitz pace. 100ms moves. Cracks under pressure. |
+| The Reaper of Pawns | 2300 | Inevitability | Trades to endgames at every opportunity. Surgical conversion. |
 | Oracle Nyx the Paranoid | 2500 | Paranoia | Denies your plans before you form them. Karpovian prophylaxis. |
-| The Fallen Champion | 2700 | Pride | Adaptive. Universal style. Targets your specific weaknesses. |
+| The Fallen Champion | 2700 | Despair | Adaptive. Universal style. Targets your specific weaknesses. |
 | Dread Hades, Lord of the 64 Hells | 3000 | All sins | Final boss. Knows your full campaign history. Zero mercy. |
 
 Each agent uses a **tiered engine backend**: randomized move selection at the low end, blended random/skill weighting in the mid-tier, and `UCI_LimitStrength + UCI_Elo` for the upper tier — ensuring authentic, differentiated gameplay at every level.
@@ -96,7 +96,7 @@ A linear unlock chain lets you descend through all 15 Generals with structured l
 
 **Unlock logic:** Pawnstorm Petey is always available. Win against a General to unlock the next. Progress is stored in Supabase (`campaign_progress` table, RLS-enforced) and persists across sessions. Campaign games use no time control and **Teach Mode is off** — use Free Play with Teach Mode to prepare, then apply what you learned in Campaign.
 
-**Descent groupings:** The campaign ladder is divided into four named Descents — The Outer Hells, The Middle Hells, The Deep Hells, and The Abyss — with visual connector lines between cards that turn emerald as you clear each General.
+**Descent groupings:** The campaign ladder is divided into four named Descents — The Outer Hells, The Middle Hells, The Inner Hells, and Heralds & Throne — with visual connector lines between cards that turn emerald as you clear each General.
 
 **Pre-fight briefing:** Clicking "Fight Boss" opens a `BossFightModal` showing the persona's lesson focus, a "Watch Out" tip, and the reward before you commit. "Start Fight" navigates directly to the game.
 

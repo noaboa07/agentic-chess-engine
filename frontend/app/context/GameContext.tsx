@@ -44,13 +44,13 @@ export type PersonaId =
   | 'sir_vance_the_vain'
   | 'lady_cassandra_bloodwine'
   | 'the_hippomancer'
-  | 'magister_tobias_the_pedant'
+  | 'magister_tobias'
   | 'wrathful_vex'
   | 'the_mirror_maiden'
-  | 'lady_vipra_the_coiled'
-  | 'boros_the_time_devourer'
-  | 'the_reaper_of_pawns'
-  | 'oracle_nyx_the_paranoid'
+  | 'lady_vipra'
+  | 'boros'
+  | 'the_reaper'
+  | 'oracle_nyx'
   | 'the_fallen_champion'
   | 'dread_hades';
 
@@ -135,7 +135,7 @@ export const PERSONAS: PersonaMeta[] = [
     defeatQuote:  'Ah. The river has chosen. Pass, child.',
     description:  'Breaking down advanced fortresses, advanced prophylaxis' },
 
-  { id: 'magister_tobias_the_pedant', descent: 2, descentName: 'The Middle Hells', elo: 1400, skillLevel: 13,
+  { id: 'magister_tobias', descent: 2, descentName: 'The Middle Hells', elo: 1400, skillLevel: 14,
     sin: 'Pride', unlockRequires: 'the_hippomancer',
     name: 'Magister Tobias the Pedant',
     quote:        'Actually, in the Najdorf English Attack, move 17 is...',
@@ -144,15 +144,15 @@ export const PERSONAS: PersonaMeta[] = [
     description:  'Principles over memorization, navigating unfamiliar positions' },
 
   // ── Third Descent: The Inner Hells ───────────────────────────────────────
-  { id: 'wrathful_vex',            descent: 3, descentName: 'The Inner Hells',    elo: 1500, skillLevel: 15,
-    sin: 'Wrath', unlockRequires: 'magister_tobias_the_pedant',
+  { id: 'wrathful_vex',            descent: 3, descentName: 'The Inner Hells',    elo: 1600, skillLevel: 16,
+    sin: 'Wrath', unlockRequires: 'magister_tobias',
     name: 'Wrathful Vex',
     quote:        "There's always a combination. ALWAYS. SHUT UP.",
     victoryQuote: 'BURN. BURN. BURN. WHAT? WHAT NOW? HUH?',
     defeatQuote:  'I HATE THIS GAME I HATE YOU I HATE EVERYTHING — ',
     description:  'Calculation, defending against threats, recognizing when there is no tactic' },
 
-  { id: 'the_mirror_maiden',       descent: 3, descentName: 'The Inner Hells',    elo: 1600, skillLevel: 16,
+  { id: 'the_mirror_maiden',       descent: 3, descentName: 'The Inner Hells',    elo: 1800, skillLevel: 17,
     sin: 'Envy', unlockRequires: 'wrathful_vex',
     name: 'The Mirror Maiden',
     quote:        'I have no moves of my own. Only yours.',
@@ -160,7 +160,7 @@ export const PERSONAS: PersonaMeta[] = [
     defeatQuote:  'I... I will play your moves... in another life...',
     description:  'Self-awareness, breaking your own patterns' },
 
-  { id: 'lady_vipra_the_coiled',   descent: 3, descentName: 'The Inner Hells',    elo: 1800, skillLevel: 17,
+  { id: 'lady_vipra',   descent: 3, descentName: 'The Inner Hells',    elo: 2000, skillLevel: 19,
     sin: 'Cruelty', unlockRequires: 'the_mirror_maiden',
     name: 'Lady Vipra, the Coiled',
     quote:        'I will squeeze you for fifty moves and you will not know why you are losing.',
@@ -168,8 +168,8 @@ export const PERSONAS: PersonaMeta[] = [
     defeatQuote:  'Sssssso. The mouse has fangs. Interesssssting.',
     description:  'Positional understanding, recognizing slow strategic pressure' },
 
-  { id: 'boros_the_time_devourer', descent: 3, descentName: 'The Inner Hells',    elo: 2000, skillLevel: 18,
-    sin: 'Tyranny', unlockRequires: 'lady_vipra_the_coiled',
+  { id: 'boros', descent: 3, descentName: 'The Inner Hells',    elo: 2100, skillLevel: 20,
+    sin: 'Tyranny', unlockRequires: 'lady_vipra',
     name: 'Boros the Time-Devourer',
     quote:        'Time is the only piece that matters.',
     victoryQuote: 'Sand. Out. Done.',
@@ -177,31 +177,31 @@ export const PERSONAS: PersonaMeta[] = [
     description:  'Time management, calm under pressure, punishing speed-induced inaccuracy' },
 
   // ── Fourth Descent: The Heralds & Throne ────────────────────────────────
-  { id: 'the_reaper_of_pawns',     descent: 4, descentName: 'The Heralds & Throne', elo: 2200, skillLevel: 19,
-    sin: 'Inevitability', unlockRequires: 'boros_the_time_devourer',
+  { id: 'the_reaper',     descent: 4, descentName: 'The Heralds & Throne', elo: 2300, skillLevel: 20,
+    sin: 'Inevitability', unlockRequires: 'boros',
     name: 'The Reaper of Pawns',
     quote:        'The middlegame is a rumor. Trade queens.',
     victoryQuote: '',
     defeatQuote:  'I will see you again.',
     description:  'Endgame fundamentals' },
 
-  { id: 'oracle_nyx_the_paranoid', descent: 4, descentName: 'The Heralds & Throne', elo: 2400, skillLevel: 19,
-    sin: 'Paranoia', unlockRequires: 'the_reaper_of_pawns',
+  { id: 'oracle_nyx', descent: 4, descentName: 'The Heralds & Throne', elo: 2500, skillLevel: 20,
+    sin: 'Paranoia', unlockRequires: 'the_reaper',
     name: 'Oracle Nyx the Paranoid',
     quote:        'I saw that move three of yours ago. I have already prevented it.',
     victoryQuote: 'It ended as I foresaw. As all things do.',
     defeatQuote:  'I... did not see this. I did not see... this...',
     description:  'Planning, candidate moves, playing with a plan instead of reacting' },
 
-  { id: 'the_fallen_champion',     descent: 4, descentName: 'The Heralds & Throne', elo: 2600, skillLevel: 20,
-    sin: 'Despair', unlockRequires: 'oracle_nyx_the_paranoid',
+  { id: 'the_fallen_champion',     descent: 4, descentName: 'The Heralds & Throne', elo: 2700, skillLevel: 20,
+    sin: 'Despair', unlockRequires: 'oracle_nyx',
     name: 'The Fallen Champion',
     quote:        'I played a thousand games before I forgot why.',
     victoryQuote: 'You will join me here. I have seen it.',
     defeatQuote:  'Then... you might actually... finish what I started...',
     description:  'Self-awareness about your own weaknesses', adaptive: true },
 
-  { id: 'dread_hades',             descent: 4, descentName: 'The Heralds & Throne', elo: 2700, skillLevel: 20,
+  { id: 'dread_hades',             descent: 4, descentName: 'The Heralds & Throne', elo: 3000, skillLevel: 20,
     sin: 'All', unlockRequires: 'the_fallen_champion',
     name: 'Dread Hades, the Chess Devil',
     quote:        'You played a good game. I played a different one.',

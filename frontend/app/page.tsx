@@ -80,8 +80,8 @@ const FEATURES = [
         {[
           'The Outer Hells',
           'The Middle Hells',
-          'The Deep Hells',
-          'The Abyss',
+          'The Inner Hells',
+          'Heralds & Throne',
         ].map((descent, i) => (
           <div key={descent} className="flex items-center gap-3">
             <div className="flex flex-col items-center">

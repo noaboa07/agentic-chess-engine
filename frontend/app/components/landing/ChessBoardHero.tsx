@@ -7,7 +7,7 @@ const LINES = [
   },
   {
     fn:    'coach.generate()',
-    args:  'persona="oracle_nyx_the_paranoid"',
+    args:  'persona="oracle_nyx"',
     arrow: '→',
     value: '"You walked right into that."',
   },
