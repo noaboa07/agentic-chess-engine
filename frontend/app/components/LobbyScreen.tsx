@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function LobbyScreen({ onStartGame, onBack }: Props) {
-  const [selectedPersona, setSelectedPersona] = useState<PersonaId>('pawnstorm_petey');
+  const [selectedPersona, setSelectedPersona] = useState<PersonaId>('silas');
   const [selectedTC, setSelectedTC] = useState<TimeControl | null>(() => {
     const { defaultTimeControlId } = getSettings();
     return TIME_CONTROLS.find(tc => tc.label.toLowerCase() === defaultTimeControlId) ?? null;

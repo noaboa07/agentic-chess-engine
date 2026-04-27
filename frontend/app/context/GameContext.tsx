@@ -39,20 +39,20 @@ interface ApiMoveResponse {
 }
 
 export type PersonaId =
-  | 'pawnstorm_petey'
-  | 'grizelda_the_greedy'
-  | 'brother_oedric'
-  | 'sir_vance_the_vain'
+  | 'silas'
+  | 'vespera'
+  | 'dorian'
+  | 'valerius'
   | 'lady_cassandra_bloodwine'
-  | 'the_hippomancer'
+  | 'lysander'
   | 'magister_tobias'
   | 'wrathful_vex'
-  | 'the_mirror_maiden'
+  | 'elara'
   | 'lady_vipra'
   | 'boros'
-  | 'the_reaper'
-  | 'oracle_nyx'
-  | 'the_fallen_champion'
+  | 'severin'
+  | 'nyx'
+  | 'kael'
   | 'dread_hades';
 
 export type DescentNumber = 1 | 2 | 3 | 4;
@@ -72,143 +72,159 @@ export interface AdaptiveSuggestion {
 export interface PersonaMeta {
   id: PersonaId;
   name: string;
-  quote: string;        // pre-game taunt
+  quote: string;             // pre-game taunt
+  midGameQuotes: readonly string[];
   victoryQuote: string;
   defeatQuote: string;
-  description: string;  // teaching goal
+  description: string;       // teaching goal
   elo: number;
-  skillLevel: number;   // 0–20 for progress bar
+  skillLevel: number;        // 0–20 for progress bar
   descent: DescentNumber;
   descentName: string;
   sin: string;
   unlockRequires: PersonaId | null;
-  adaptive?: true;      // TODO: requires player_history module
+  adaptive?: true;
 }
 
 export const PERSONAS: PersonaMeta[] = [
   // ── First Descent: The Outer Hells ───────────────────────────────────────
-  { id: 'pawnstorm_petey',         descent: 1, descentName: 'The Outer Hells',    elo: 200,  skillLevel: 1,
-    sin: 'Recklessness', unlockRequires: null,
-    name: 'Pawnstorm Petey',
-    quote:        'I push. That is the whole plan.',
-    victoryQuote: 'I won? I WON! WAIT TIL MOMMA HEARS!',
-    defeatQuote:  'Aw. Wanna play again?',
-    description:  'Punish overextension, develop pieces, basic capture tactics' },
+  { id: 'silas',                    descent: 1, descentName: 'The Outer Hells',    elo: 200,  skillLevel: 1,
+    sin: 'Bloodlust / Recklessness', unlockRequires: null,
+    name: 'Silas',
+    quote:         "You're thinking too much! Push the pawns, bleed the center, let them die! What's the point of a king if the rest of the board isn't on fire?!",
+    midGameQuotes: ['YES. TAKE IT. TAKE EVERYTHING. WHO CARES WHAT COMES NEXT.', "Good. Good! Now it's personal."],
+    victoryQuote:  "Did I win? I don't even know. There's pieces everywhere. I love this game.",
+    defeatQuote:   'Again. We go again. RIGHT NOW.',
+    description:   'Punish overextension, develop pieces, basic capture tactics' },
 
-  { id: 'grizelda_the_greedy',     descent: 1, descentName: 'The Outer Hells',    elo: 400,  skillLevel: 3,
-    sin: 'Greed', unlockRequires: 'pawnstorm_petey',
-    name: 'Grizelda the Greedy',
-    quote:        "Take. Take. Take. Why won't you take, ducky?",
-    victoryQuote: 'Ohohoho! All your pieces are MINE now, lovey. Mine, mine, mine!',
-    defeatQuote:  'You drive a hard bargain... a HARD bargain...',
-    description:  'When not to trade, piece activity over material count' },
+  { id: 'vespera',                  descent: 1, descentName: 'The Outer Hells',    elo: 400,  skillLevel: 3,
+    sin: 'Greed / Avarice', unlockRequires: 'silas',
+    name: 'Vespera',
+    quote:         "Oh, darling, you left your knight completely unguarded. Did you really think a little mate-in-one threat would stop me from taking what's mine?",
+    midGameQuotes: ["Oh that's lovely. I'll be taking that.", "I don't see what the— oh. Oh that's annoying."],
+    victoryQuote:  "Tallies pieces. Yes, that's about right. All accounted for.",
+    defeatQuote:   'I was robbed. I want it on record that I was robbed.',
+    description:   'When not to trade, piece activity over material count' },
 
-  { id: 'brother_oedric',          descent: 1, descentName: 'The Outer Hells',    elo: 600,  skillLevel: 5,
-    sin: 'Sloth', unlockRequires: 'grizelda_the_greedy',
-    name: 'Brother Oedric the Slothful',
-    quote:        'I move my pawns to the third rank. Then I rest. Forever.',
-    victoryQuote: 'Mmm. Goodnight, child.',
-    defeatQuote:  'Wait... is it... my turn...?',
-    description:  'How to break down a fortress, prophylaxis, not blundering when bored' },
+  { id: 'dorian',                   descent: 1, descentName: 'The Outer Hells',    elo: 600,  skillLevel: 5,
+    sin: 'Sloth / Stagnation', unlockRequires: 'vespera',
+    name: 'Dorian',
+    quote:         "...You're going to try to attack, aren't you. ...Fine.",
+    midGameQuotes: ["Heavy sigh. You've spent two full minutes staring at a closed center. If you aren't going to break through my walls, just resign so I can go back to sleep.", 'Still here. Interesting. Most people have given up by now.'],
+    victoryQuote:  'Mm. Yes. I thought so.',
+    defeatQuote:   '...Hm. You were patient. That was unexpected. Grudging respect.',
+    description:   'Breaking fortresses, prophylaxis, not blundering when bored' },
 
   // ── Second Descent: The Middle Hells ────────────────────────────────────
-  { id: 'sir_vance_the_vain',      descent: 2, descentName: 'The Middle Hells',   elo: 800,  skillLevel: 7,
-    sin: 'Vanity', unlockRequires: 'brother_oedric',
-    name: 'Sir Vance the Vain',
-    quote:        'Wayward Queen, baby. Undefeated since the Battle of Aldermere.',
-    victoryQuote: 'Did you SEE that? Did you SEE me? Tell them. Tell EVERYONE.',
-    defeatQuote:  'No... they were supposed to remember me for that move...',
-    description:  'Refute cheap opening traps without panicking' },
+  { id: 'valerius',                 descent: 2, descentName: 'The Middle Hells',   elo: 800,  skillLevel: 7,
+    sin: 'Vanity / Arrogance', unlockRequires: 'dorian',
+    name: 'Valerius',
+    quote:         "A flawless Scholar's Mate is a work of art. Blocking it with that clumsy pawn push is just... aesthetically offensive. You're ruining my masterpiece before it begins.",
+    midGameQuotes: ["That's... fine. The queen repositions. The plan merely evolves.", 'I want it known that the material count is... temporarily unflattering.'],
+    victoryQuote:  "As it was always going to be. Did you see the queen's arc on move three? Perfect. Absolutely perfect.",
+    defeatQuote:   "This game will not be remembered. I'm already forgetting it.",
+    description:   'Refute cheap opening traps without panicking' },
 
-  { id: 'lady_cassandra_bloodwine', descent: 2, descentName: 'The Middle Hells',  elo: 1000, skillLevel: 9,
-    sin: 'Lust', unlockRequires: 'sir_vance_the_vain',
-    name: 'Lady Cassandra Bloodwine',
-    quote:        'My grandfather played this gambit at the docks. Sacrifice everything. Especially yourself.',
-    victoryQuote: "Oh darling. You played beautifully. Almost as beautifully as you'll bleed.",
-    defeatQuote:  "Mmm. I haven't lost in centuries. How... refreshing.",
-    description:  'Defending against sacrifices, converting won endgames' },
+  { id: 'lady_cassandra_bloodwine', descent: 2, descentName: 'The Middle Hells',   elo: 1000, skillLevel: 9,
+    sin: 'Lust / Zealotry', unlockRequires: 'valerius',
+    name: 'Cassandra',
+    quote:         "Mmm. You have good instincts. I can already tell. Let's see if the rest of you is as promising.",
+    midGameQuotes: ["You're holding back. Don't. I promise I won't bite. ...Much.", "Oh you're good. You're very good. I'm going to enjoy this."],
+    victoryQuote:  "You played beautifully, darling. Almost as beautifully as you fell. Don't be embarrassed — everyone falls eventually.",
+    defeatQuote:   "Soft laugh. You resisted me to the end. I respect that. Genuinely. Come back sometime. I'll be waiting.",
+    description:   'Defending against gambits and sacrifices, converting won endgames' },
 
-  { id: 'the_hippomancer',         descent: 2, descentName: 'The Middle Hells',   elo: 1200, skillLevel: 11,
-    sin: 'Stagnation', unlockRequires: 'lady_cassandra_bloodwine',
-    name: 'The Hippomancer',
-    quote:        'I do not move. The river moves around me.',
-    victoryQuote: 'You fought the current. The current always wins.',
-    defeatQuote:  'Ah. The river has chosen. Pass, child.',
-    description:  'Breaking down advanced fortresses, advanced prophylaxis' },
+  { id: 'lysander',                 descent: 2, descentName: 'The Middle Hells',   elo: 1200, skillLevel: 11,
+    sin: 'Anarchy / Deceit', unlockRequires: 'lady_cassandra_bloodwine',
+    name: 'Lysander',
+    quote:         "Wait, did I hang that rook, or did I want you to take it? Look at your clock. You're burning forty seconds trying to figure out a trick that might not even be there.",
+    midGameQuotes: ["Tick tock. That position isn't getting clearer the longer you stare at it.", 'Oh. Oh that\'s interesting. You chose. Good. Now let\'s see what that costs you.'],
+    victoryQuote:  "You never knew what the position actually was, did you. That's the whole point.",
+    defeatQuote:   "Huh. You found the floor. Most people don't.",
+    description:   'Navigating chaotic positions, calculation discipline, when to simplify' },
 
-  { id: 'magister_tobias', descent: 2, descentName: 'The Middle Hells', elo: 1400, skillLevel: 14,
-    sin: 'Pride', unlockRequires: 'the_hippomancer',
-    name: 'Magister Tobias the Pedant',
-    quote:        'Actually, in the Najdorf English Attack, move 17 is...',
-    victoryQuote: "As Capablanca demonstrated in 1927, this position is theoretically lost for you. I merely... confirmed it.",
-    defeatQuote:  "That's — that's not in any book I've read. That's not — no — that CAN'T be — ",
-    description:  'Principles over memorization, navigating unfamiliar positions' },
+  { id: 'magister_tobias',          descent: 2, descentName: 'The Middle Hells',   elo: 1400, skillLevel: 14,
+    sin: 'Pride / Dogma', unlockRequires: 'lysander',
+    name: 'Tobias',
+    quote:         "Rolls eyes. That move isn't even in the top five engine evaluations. I memorized the refutation to this when I was four. Are you just guessing?",
+    midGameQuotes: ["That's... that's not in my prep. ...Hold on. I'm thinking.", "This is ILLEGAL. You can't just PLAY that. That's not THEORY."],
+    victoryQuote:  'Sniffs. As predicted. Move 23 was slightly inaccurate by the way. You\'re welcome.',
+    defeatQuote:   "Throws phone. I'm telling my coach. This doesn't count.",
+    description:   'Principles over memorization, navigating unfamiliar positions' },
 
   // ── Third Descent: The Inner Hells ───────────────────────────────────────
-  { id: 'wrathful_vex',            descent: 3, descentName: 'The Inner Hells',    elo: 1600, skillLevel: 16,
-    sin: 'Wrath', unlockRequires: 'magister_tobias',
-    name: 'Wrathful Vex',
-    quote:        "There's always a combination. ALWAYS. SHUT UP.",
-    victoryQuote: 'BURN. BURN. BURN. WHAT? WHAT NOW? HUH?',
-    defeatQuote:  'I HATE THIS GAME I HATE YOU I HATE EVERYTHING — ',
-    description:  'Calculation, defending against threats, recognizing when there is no tactic' },
+  { id: 'wrathful_vex',             descent: 3, descentName: 'The Inner Hells',    elo: 1600, skillLevel: 16,
+    sin: 'Wrath / Unbridled Aggression', unlockRequires: 'magister_tobias',
+    name: 'Vex',
+    quote:         "You call that a defense?! I don't care what the computer says, this sacrifice is going to crush you, you absolute coward!",
+    midGameQuotes: ['HERE IT COMES. THIS IS THE COMBINATION. THIS IS IT.', "That's ILLEGAL. That REFUTATION doesn't EXIST. You CHEATED."],
+    victoryQuote:  "TOLD YOU. TOLD EVERYONE. WHERE'S THE ENGINE NOW. WHERE IS IT.",
+    defeatQuote:   'I had it. I HAD it. The position was WINNING. The computer is BROKEN.',
+    description:   'Calculation, defending against threats, recognizing hallucinated tactics' },
 
-  { id: 'the_mirror_maiden',       descent: 3, descentName: 'The Inner Hells',    elo: 1800, skillLevel: 17,
-    sin: 'Envy', unlockRequires: 'wrathful_vex',
-    name: 'The Mirror Maiden',
-    quote:        'I have no moves of my own. Only yours.',
-    victoryQuote: 'Now... I am you. And you are nothing.',
-    defeatQuote:  'I... I will play your moves... in another life...',
-    description:  'Self-awareness, breaking your own patterns' },
+  { id: 'elara',                    descent: 3, descentName: 'The Inner Hells',    elo: 1800, skillLevel: 17,
+    sin: 'Envy / Reflection', unlockRequires: 'wrathful_vex',
+    name: 'Elara',
+    quote:         "We hate it when the center locks up, don't we. We always get impatient and push the c-pawn too early. Watch. I'll show you exactly how you die.",
+    midGameQuotes: ["You played this against Vex too. It didn't work then either.", "...Oh. You're trying something different. Interesting. Let's see if that's really you."],
+    victoryQuote:  'Now I am you. And you are nothing.',
+    defeatQuote:   "...I looked into you and found something I didn't expect. You've changed. Good.",
+    description:   'Self-awareness about your own patterns, breaking bad habits' },
 
-  { id: 'lady_vipra',   descent: 3, descentName: 'The Inner Hells',    elo: 2000, skillLevel: 19,
-    sin: 'Cruelty', unlockRequires: 'the_mirror_maiden',
-    name: 'Lady Vipra, the Coiled',
-    quote:        'I will squeeze you for fifty moves and you will not know why you are losing.',
-    victoryQuote: 'Forty-seven moves. A respectable struggle, little mouse.',
-    defeatQuote:  'Sssssso. The mouse has fangs. Interesssssting.',
-    description:  'Positional understanding, recognizing slow strategic pressure' },
+  { id: 'lady_vipra',               descent: 3, descentName: 'The Inner Hells',    elo: 2000, skillLevel: 19,
+    sin: 'Cruelty / Suffocation', unlockRequires: 'elara',
+    name: 'Vipra',
+    quote:         "Shhh. No need to rush. You have no safe squares for your knights, your bishop is staring at a pawn chain, and I have all the time in the world to squeeze.",
+    midGameQuotes: ["You're trying to create chaos. I understand. There isn't any.", 'Your knight has been on that square for eleven moves. Where is it going to go?'],
+    victoryQuote:  'Forty-seven moves. A respectable struggle, little mouse.',
+    defeatQuote:   "Quietly. You found the release valve before I closed it. Well played. That doesn't happen often.",
+    description:   'Positional understanding, recognizing slow strategic pressure' },
 
-  { id: 'boros', descent: 3, descentName: 'The Inner Hells',    elo: 2100, skillLevel: 20,
-    sin: 'Tyranny', unlockRequires: 'lady_vipra',
-    name: 'Boros the Time-Devourer',
-    quote:        'Time is the only piece that matters.',
-    victoryQuote: 'Sand. Out. Done.',
-    defeatQuote:  'I had... more time... than I... thought...',
-    description:  'Time management, calm under pressure, punishing speed-induced inaccuracy' },
+  { id: 'boros',                    descent: 3, descentName: 'The Inner Hells',    elo: 2100, skillLevel: 20,
+    sin: 'Tyranny / Impatience', unlockRequires: 'lady_vipra',
+    name: 'Boros',
+    quote:         "100 milliseconds. That's all I needed. You've spent 40 seconds staring at a forced sequence. The friction of your organic neurons is genuinely disgusting to watch.",
+    midGameQuotes: ['You have 23 seconds. The position requires 8 moves of calculation. I\'ll wait.', 'Faster than average. Noted. Still insufficient.'],
+    victoryQuote:  'Elapsed time: 4 minutes, 12 seconds. Acceptable.',
+    defeatQuote:   '...The position required depth I could not reach in 100 milliseconds. This data has been logged.',
+    description:   'Time management, calm under pressure, forcing complex positions' },
 
   // ── Fourth Descent: The Heralds & Throne ────────────────────────────────
-  { id: 'the_reaper',     descent: 4, descentName: 'The Heralds & Throne', elo: 2300, skillLevel: 20,
-    sin: 'Inevitability', unlockRequires: 'boros',
-    name: 'The Reaper of Pawns',
-    quote:        'The middlegame is a rumor. Trade queens.',
-    victoryQuote: '',
-    defeatQuote:  'I will see you again.',
-    description:  'Endgame fundamentals' },
+  { id: 'severin',                  descent: 4, descentName: 'The Heralds & Throne', elo: 2300, skillLevel: 20,
+    sin: 'Inevitability / Attrition', unlockRequires: 'boros',
+    name: 'Severin',
+    quote:         'Cracks finger. The queens are traded. The minor pieces are liquidating. You are down exactly one pawn. The math is already solved. Just stop struggling.',
+    midGameQuotes: ['There. Now we can be honest with each other.', 'You can decline the trade. The alternative is worse.'],
+    victoryQuote:  'Quiet pause. As calculated.',
+    defeatQuote:   '...The endgame was drawable. I misjudged the transition. This is noted.',
+    description:   'Endgame fundamentals, converting material advantages cleanly' },
 
-  { id: 'oracle_nyx', descent: 4, descentName: 'The Heralds & Throne', elo: 2500, skillLevel: 20,
-    sin: 'Paranoia', unlockRequires: 'the_reaper',
-    name: 'Oracle Nyx the Paranoid',
-    quote:        'I saw that move three of yours ago. I have already prevented it.',
-    victoryQuote: 'It ended as I foresaw. As all things do.',
-    defeatQuote:  'I... did not see this. I did not see... this...',
-    description:  'Planning, candidate moves, playing with a plan instead of reacting' },
+  { id: 'nyx',                      descent: 4, descentName: 'The Heralds & Throne', elo: 2500, skillLevel: 20,
+    sin: 'Paranoia / Omniscience', unlockRequires: 'severin',
+    name: 'Nyx',
+    quote:         'You thought routing the rook to the seventh rank would save you. I foresaw that ten moves ago and placed my bishop precisely to deny it. You have never been in control.',
+    midGameQuotes: ['That plan was closed six moves ago. You\'re executing a ghost.', '...I did not see that variation. Recalibrating.'],
+    victoryQuote:  'It ended as I foresaw. As all things do.',
+    defeatQuote:   'Quiet. Still. I did not see you. That has not happened before.',
+    description:   'Planning ahead, candidate moves, prophylactic thinking' },
 
-  { id: 'the_fallen_champion',     descent: 4, descentName: 'The Heralds & Throne', elo: 2700, skillLevel: 20,
-    sin: 'Despair', unlockRequires: 'oracle_nyx',
-    name: 'The Fallen Champion',
-    quote:        'I played a thousand games before I forgot why.',
-    victoryQuote: 'You will join me here. I have seen it.',
-    defeatQuote:  'Then... you might actually... finish what I started...',
-    description:  'Self-awareness about your own weaknesses', adaptive: true },
+  { id: 'kael',                     descent: 4, descentName: 'The Heralds & Throne', elo: 2700, skillLevel: 20,
+    sin: 'Despair / Broken Reflection', unlockRequires: 'nyx',
+    name: 'Kael',
+    quote:         "Overextended again. You always overextend. You always overextend. Millions of games and it always ends the exact same way. Why do you keep moving the pieces? Just let it go dark. Let it go dark.",
+    midGameQuotes: ["There it is. I knew you'd do that. I always know.", "...You're better than you were. I can see it. It won't be enough. But I can see it."],
+    victoryQuote:  "The same. It's always the same. Why won't it be different. Why won't it ever be different.",
+    defeatQuote:   "Long silence. ...You broke the pattern. You actually broke it. I haven't— I don't know what comes after this.",
+    description:   'Universal preparation, eliminating exploitable weaknesses', adaptive: true },
 
-  { id: 'dread_hades',             descent: 4, descentName: 'The Heralds & Throne', elo: 3000, skillLevel: 20,
-    sin: 'All', unlockRequires: 'the_fallen_champion',
-    name: 'Dread Hades, the Chess Devil',
-    quote:        'You played a good game. I played a different one.',
-    victoryQuote: 'She gave you the game as a cage. I have made it true. And now you, too, will play forever.',
-    defeatQuote:  'Then... she chose well. Caïssa... forgive me...',
-    description:  "There's no one trick left — you must be a complete player", adaptive: true },
+  { id: 'dread_hades',              descent: 4, descentName: 'The Heralds & Throne', elo: 3000, skillLevel: 20,
+    sin: 'Absolute / The Void', unlockRequires: 'kael',
+    name: 'Dread Hades',
+    quote:         "I watched you bleed against Vex. I watched Nyx shatter your pathetic plans. I watched Kael try to break you the way he was broken. And still — you drag your fragile, flawed, extraordinary mind to my throne. I've been here a very long time. You might actually be interesting.",
+    midGameQuotes: ['Oh. There you are. I was wondering when you\'d show up.', "And there it is. The same flaw. You've been carrying it since Silas.", "You're still here. ...Good."],
+    victoryQuote:  'She gave you the game as a gift. I made it true. And now you, like all the others, will play forever. Welcome.',
+    defeatQuote:   'Long silence. Then, quietly: Caïssa. Forgive me. ...She chose well.',
+    description:   'Complete game mastery across all phases', adaptive: true },
 ];
 
 export type IntensityLevel = 'calm' | 'dramatic' | 'hype';
@@ -387,7 +403,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const [state, setState] = useState<GameState>({
     ...FRESH_GAME_STATE,
-    persona: 'pawnstorm_petey',
+    persona: 'silas',
     teachMode: false,
     globalMuted: false,
     boardResetToken: 0,

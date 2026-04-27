@@ -21,7 +21,7 @@
 
 ## The Concept
 
-Most chess apps give you a difficulty slider. This platform gives you **15 distinct opponents** — each a fully realized AI agent with its own personality, communication style, and strategic identity. Organized as the **Hells of Caïssa**: four Descents of increasingly dangerous Generals, from Pawnstorm Petey at 200 Elo to Dread Hades, Lord of the 64 Hells, at 3000. Every agent is backed by a Stockfish engine profile and an LLM that generates real-time coaching, trash talk, post-game analysis, and multi-agent move debates — all in character.
+Most chess apps give you a difficulty slider. This platform gives you **15 distinct opponents** — each a fully realized AI agent with its own personality, communication style, and strategic identity. Organized as the **Hells of Caïssa**: four Descents of increasingly dangerous Generals, from Silas at 200 Elo to Dread Hades, Lord of the 64 Hells, at 3000. Every agent is backed by a Stockfish engine profile and an LLM that generates real-time coaching, trash talk, post-game analysis, and multi-agent move debates — all in character.
 
 Beyond head-to-head play, the platform is a complete chess training system: a campaign progression ladder with tier groupings and pre-fight briefings, game history replay with move-by-move evaluation, a progress dashboard with CPL trends and weakness heatmaps, an auto-generated puzzle feed from your own blunders, a personalized training plan, and a 15-achievement badge system — all without leaving the app. A fully static `/demo` route lets recruiters explore the platform without signing in.
 
@@ -37,36 +37,36 @@ Each agent spans a unique slice of the Elo spectrum with hand-crafted personalit
 
 | General | Elo | Sin | Archetype |
 |---|---|---|---|
-| Pawnstorm Petey | 200 | Recklessness | Shoves every pawn forward. No piece ever moves. |
-| Grizelda the Greedy | 400 | Greed | Captures everything in reach regardless of consequences. |
-| Brother Oedric the Slothful | 600 | Sloth | Passive Hippo setup. Never initiates. Punishes impatience. |
+| Silas | 200 | Bloodlust / Recklessness | Charges the center mindlessly. Every pawn a weapon, every piece expendable. |
+| Vespera | 400 | Greed / Avarice | Captures everything in reach regardless of consequences. |
+| Dorian | 600 | Sloth / Stagnation | Impenetrable fortress. Never initiates. Punishes impatience and premature breaks. |
 
 **Second Descent — The Middle Hells**
 
 | General | Elo | Sin | Archetype |
 |---|---|---|---|
-| Sir Vance the Vain | 800 | Vanity | Scholar's Mate every game. Collapses completely if defended. |
-| Lady Cassandra Bloodwine | 1000 | Lust | All romantic gambits — King's Gambit, Danish, Smith-Morra. |
-| The Hippomancer | 1200 | Stagnation | Summons the ancient Hippo Formation. Never breaks it. |
+| Valerius | 800 | Vanity / Arrogance | Scholar's Mate every game. Collapses completely if defended. |
+| Cassandra | 1000 | Lust / Zealotry | Romantic-era gambits and all-in sacrifices. Brutal if you accept. |
+| Lysander | 1200 | Anarchy / Deceit | Hangs pieces on purpose. You will never know what is real. |
 
 **Third Descent — The Inner Hells**
 
 | General | Elo | Sin | Archetype |
 |---|---|---|---|
-| Magister Tobias the Pedant | 1400 | Pride | 22 moves of mainline theory. Lost in any sideline. |
-| Wrathful Vex | 1600 | Wrath | Forces tactics everywhere. Half are hallucinations. |
-| The Mirror Maiden | 1800 | Envy | Mirrors your openings and style back at you. |
-| Lady Vipra the Coiled | 2000 | Cruelty | Pure positional. Slow suffocation over 50+ moves. |
+| Tobias | 1400 | Pride / Dogma | 22 moves of mainline theory. Lost the moment you deviate. |
+| Vex | 1600 | Wrath / Unbridled Aggression | Forces tactics everywhere. Half are hallucinations. |
+| Elara | 1800 | Envy / Reflection | Mirrors your own patterns back at you from your campaign history. |
+| Vipra | 2000 | Cruelty / Suffocation | Pure positional suffocation over 50+ moves. You won't know until it's over. |
 
 **Fourth Descent — Heralds & Throne**
 
 | General | Elo | Sin | Archetype |
 |---|---|---|---|
-| Boros the Time-Devourer | 2100 | Tyranny | Blitz pace. 100ms moves. Cracks under pressure. |
-| The Reaper of Pawns | 2300 | Inevitability | Trades to endgames at every opportunity. Surgical conversion. |
-| Oracle Nyx the Paranoid | 2500 | Paranoia | Denies your plans before you form them. Karpovian prophylaxis. |
-| The Fallen Champion | 2700 | Despair | Adaptive. Universal style. Targets your specific weaknesses. |
-| Dread Hades, Lord of the 64 Hells | 3000 | All sins | Final boss. Knows your full campaign history. Zero mercy. |
+| Boros | 2100 | Tyranny / Impatience | 100ms moves. Psychologically crushing. Brittle under deep calculation. |
+| Severin | 2300 | Inevitability / Attrition | Trades to endgames at every opportunity. Surgical conversion. |
+| Nyx | 2500 | Paranoia / Omniscience | Denies your plans before you form them. Prophylactic precision. |
+| Kael | 2700 | Despair / Broken Reflection | Adaptive. Universal style. Targets your specific weaknesses. |
+| Dread Hades | 3000 | Absolute / The Void | Final boss. Knows your full campaign history. Zero mercy. |
 
 Each agent uses a **tiered engine backend**: randomized move selection at the low end, blended random/skill weighting in the mid-tier, and `UCI_LimitStrength + UCI_Elo` for the upper tier — ensuring authentic, differentiated gameplay at every level.
 
@@ -78,23 +78,23 @@ A linear unlock chain lets you descend through all 15 Generals with structured l
 
 | General | Lesson Focus |
 |---|---|
-| Pawnstorm Petey | Punish overextension, develop pieces, basic capture tactics |
-| Grizelda the Greedy | When not to trade, piece activity over material count |
-| Brother Oedric the Slothful | Break down a fortress, prophylaxis, not blundering when bored |
-| Sir Vance the Vain | Refute cheap opening traps without panicking |
-| Lady Cassandra Bloodwine | Defending against sacrifices, converting won endgames |
-| The Hippomancer | Patience vs. a fortress, how to create imbalances |
-| Magister Tobias the Pedant | Principles over memorization, navigating unfamiliar positions |
-| Wrathful Vex | Calculation, defending against threats, recognizing hallucinated tactics |
-| The Mirror Maiden | Positional understanding, recognizing slow strategic pressure |
-| Lady Vipra the Coiled | Time management, calm under pressure, punishing speed inaccuracy |
-| Boros the Time Devourer | Endgame fundamentals, why you can't rely on the middlegame |
-| The Reaper of Pawns | Pawn discipline, prophylactic defense, converting material up |
-| Oracle Nyx the Paranoid | Planning, candidate moves, playing with a plan instead of reacting |
-| The Fallen Champion | Universal preparation — adapt your strengths to the opponent |
-| Dread Hades | Full game mastery across all phases |
+| Silas | Punish overextension, develop pieces, basic capture tactics |
+| Vespera | When not to trade, piece activity over material count |
+| Dorian | Breaking fortresses, prophylaxis, not blundering when bored |
+| Valerius | Refute cheap opening traps without panicking |
+| Cassandra | Defending against gambits and sacrifices, converting won endgames |
+| Lysander | Navigating chaotic positions, calculation discipline, when to simplify |
+| Tobias | Principles over memorization, navigating unfamiliar positions |
+| Vex | Calculation, defending against threats, recognizing hallucinated tactics |
+| Elara | Self-awareness about your own patterns, breaking bad habits |
+| Vipra | Positional understanding, recognizing slow strategic pressure |
+| Boros | Time management, calm under pressure, forcing complex positions |
+| Severin | Endgame fundamentals, converting material advantages cleanly |
+| Nyx | Planning ahead, candidate moves, prophylactic thinking |
+| Kael | Universal preparation, eliminating exploitable weaknesses |
+| Dread Hades | Complete game mastery across all phases |
 
-**Unlock logic:** Pawnstorm Petey is always available. Win against a General to unlock the next. Progress is stored in Supabase (`campaign_progress` table, RLS-enforced) and persists across sessions. Campaign games use no time control and **Teach Mode is off** — use Free Play with Teach Mode to prepare, then apply what you learned in Campaign.
+**Unlock logic:** Silas is always available. Win against a General to unlock the next. Progress is stored in Supabase (`campaign_progress` table, RLS-enforced) and persists across sessions. Campaign games use no time control and **Teach Mode is off** — use Free Play with Teach Mode to prepare, then apply what you learned in Campaign.
 
 **Descent groupings:** The campaign ladder is divided into four named Descents — The Outer Hells, The Middle Hells, The Inner Hells, and Heralds & Throne — with visual connector lines between cards that turn emerald as you clear each General.
 
@@ -457,7 +457,7 @@ The campaign ladder is strictly linear by design: each General unlocks the next.
 
 The skip system addresses this without compromising the campaign's structural integrity. After three losses against the same General, a **"Skip for now"** button appears on that General's campaign card. Skipping records `status = 'skipped'` in `campaign_progress` and immediately unlocks the next General as `available`, allowing the player to continue descending. The skipped General's card stays visible on the map in an **amber visual state** — distinct from locked (gray) and completed (emerald) — with a **Rematch** CTA. Defeating a skipped General on rematch marks them `complete` retroactively.
 
-Four **mandatory gate Generals** cannot be skipped: Brother Oedric (end of Descent 1), Magister Tobias (Descent 2), Boros (Descent 3), and Dread Hades (final boss). These are the structural load-bearers of the campaign; players must demonstrate genuine mastery at each tier before descending further. All other 11 Generals are skippable after 3 losses.
+Four **mandatory gate Generals** cannot be skipped: Dorian (end of Descent 1), Tobias (Descent 2), Boros (Descent 3), and Dread Hades (final boss). These are the structural load-bearers of the campaign; players must demonstrate genuine mastery at each tier before descending further. All other 11 Generals are skippable after 3 losses.
 
 Schema: a `skip_count INTEGER DEFAULT 0` column is added to `campaign_progress` (migration `20260426000001_add_skipped_status.sql`), and `'skipped'` is added to the status CHECK constraint. The 3-loss threshold is currently derived from the existing `games` table rather than `skip_count`, avoiding a new write hook during game play — `skip_count` is a stub for future server-side tracking. The migration is generated but **not auto-applied** — flag for manual review before production deployment.
 
@@ -736,7 +736,7 @@ CREATE POLICY "Users manage own achievements" ON public.user_achievements
 
 -- Seed first campaign general for all existing users
 INSERT INTO public.campaign_progress (user_id, persona_id, status)
-  SELECT id, 'pawnstorm_petey', 'available' FROM public.users
+  SELECT id, 'silas', 'available' FROM public.users
   ON CONFLICT DO NOTHING;
 ```
 

@@ -29,8 +29,11 @@ def test_canonical_elo_sequence():
 def test_all_15_sins_present():
     sins = [p.sin for p in PERSONAS.values()]
     expected = [
-        'Recklessness', 'Greed', 'Sloth', 'Vanity', 'Lust', 'Stagnation', 'Pride',
-        'Wrath', 'Envy', 'Cruelty', 'Tyranny', 'Inevitability', 'Paranoia', 'Despair', 'All',
+        'Bloodlust / Recklessness', 'Greed / Avarice', 'Sloth / Stagnation',
+        'Vanity / Arrogance', 'Lust / Zealotry', 'Anarchy / Deceit', 'Pride / Dogma',
+        'Wrath / Unbridled Aggression', 'Envy / Reflection', 'Cruelty / Suffocation',
+        'Tyranny / Impatience', 'Inevitability / Attrition', 'Paranoia / Omniscience',
+        'Despair / Broken Reflection', 'Absolute / The Void',
     ]
     assert sins == expected
 
@@ -58,11 +61,11 @@ def test_boros_search_time_ms():
     assert boros.strategy.search_time_ms == 100
 
 def test_reaper_simplification_bias():
-    reaper = get_persona("the_reaper")
+    reaper = get_persona("severin")
     assert reaper.strategy.trade_preference >= 0.85
 
 def test_reaper_endgame_skill_maxed():
-    reaper = get_persona("the_reaper")
+    reaper = get_persona("severin")
     assert reaper.strategy.endgame_skill == 1.0
 
 def test_tobias_split_skill():
@@ -75,7 +78,7 @@ def test_hades_no_blunder():
     assert hades.strategy.blunder_chance == 0.0
 
 def test_mirror_maiden_opening_selector():
-    maiden = get_persona("the_mirror_maiden")
+    maiden = get_persona("elara")
     assert maiden.strategy.opening_selector == "mirror_player_last_3_games"
 
 

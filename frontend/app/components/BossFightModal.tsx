@@ -18,21 +18,21 @@ interface BossFightModalProps {
 }
 
 const BOSS_TAUNT: Record<PersonaId, string> = {
-  pawnstorm_petey:          "I'm pushing. That's it. That's the plan.",
-  grizelda_the_greedy:      "Give me your pieces. Give me ALL of them.",
-  brother_oedric:           "I have... all the time... in the world...",
-  sir_vance_the_vain:       "You know what's coming. Let's see if you remembered.",
-  lady_cassandra_bloodwine: "My family never declined a gambit. Neither will I.",
-  the_hippomancer:          "The Hippo Formation is eternal. You are not.",
-  magister_tobias:          "I have this memorized to move 22. I hope you're in the mainline.",
-  wrathful_vex:             "There's a combination here somewhere. There's ALWAYS a combination.",
-  the_mirror_maiden:        "I have no moves of my own. Show me yours.",
-  lady_vipra:               "I will coil around this position until you have nowhere left to breathe.",
-  boros:                    "I have already moved. You just don't know it yet.",
-  the_reaper:               "The middlegame ends. Then we find out who you really are.",
-  oracle_nyx:               "Whatever you're planning, I've already closed the door.",
-  the_fallen_champion:      "I was the greatest once. I remember how this ends.",
-  dread_hades:              "I have watched every soul that fell before you. I know exactly where you break.",
+  silas:                    "You're thinking too much! Push the pawns, bleed the center, let them die! What's the point of a king if the rest of the board isn't on fire?!",
+  vespera:                  "Oh, darling, you left your knight completely unguarded. Did you really think a little mate-in-one threat would stop me from taking what's mine?",
+  dorian:                   "...You're going to try to attack, aren't you. ...Fine.",
+  valerius:                 "A flawless Scholar's Mate is a work of art. Blocking it with that clumsy pawn push is just... aesthetically offensive. You're ruining my masterpiece before it begins.",
+  lady_cassandra_bloodwine: "Mmm. You have good instincts. I can already tell. Let's see if the rest of you is as promising.",
+  lysander:                 "Wait, did I hang that rook, or did I want you to take it? Look at your clock. You're burning forty seconds trying to figure out a trick that might not even be there.",
+  magister_tobias:          "That move isn't even in the top five engine evaluations. I memorized the refutation to this when I was four. Are you just guessing?",
+  wrathful_vex:             "You call that a defense?! I don't care what the computer says, this sacrifice is going to crush you, you absolute coward!",
+  elara:                    "We hate it when the center locks up, don't we. We always get impatient and push the c-pawn too early. Watch. I'll show you exactly how you die.",
+  lady_vipra:               "Shhh. No need to rush. You have no safe squares for your knights, your bishop is staring at a pawn chain, and I have all the time in the world to squeeze.",
+  boros:                    "100 milliseconds. That's all I needed. You've spent 40 seconds staring at a forced sequence. The friction of your organic neurons is genuinely disgusting to watch.",
+  severin:                  'Cracks finger. The queens are traded. The minor pieces are liquidating. You are down exactly one pawn. The math is already solved. Just stop struggling.',
+  nyx:                      'You thought routing the rook to the seventh rank would save you. I foresaw that ten moves ago and placed my bishop precisely to deny it. You have never been in control.',
+  kael:                     "Overextended again. You always overextend. You always overextend. Millions of games and it always ends the exact same way. Why do you keep moving the pieces? Just let it go dark. Let it go dark.",
+  dread_hades:              "I watched you bleed against Vex. I watched Nyx shatter your pathetic plans. I watched Kael try to break you the way he was broken. And still — you drag your fragile, flawed, extraordinary mind to my throne. I've been here a very long time. You might actually be interesting.",
 };
 
 export default function BossFightModal({ personaId, info, onClose }: BossFightModalProps) {
