@@ -35,6 +35,7 @@ interface ApiMoveResponse {
   classification: MoveClassification;
   coach_message: string | null;
   debate_transcript: DebateEntry[] | null;
+  debate_skipped?: boolean;
 }
 
 export type PersonaId =
@@ -307,6 +308,9 @@ interface GameState {
   opponentExplanation: string | null;
   isExplainingOpponent: boolean;
   rateLimitError: string | null;
+  debateSkipped: boolean;
+  explainCooldowns: Record<string, number>;
+  opponentExplainCooldownUntil: number | null;
 }
 
 const randomColor = (): PlayerColor => (Math.random() < 0.5 ? 'white' : 'black');
@@ -336,6 +340,9 @@ const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' 
   opponentExplanation: null,
   isExplainingOpponent: false,
   rateLimitError: null,
+  debateSkipped: false,
+  explainCooldowns: {},
+  opponentExplainCooldownUntil: null,
 };
 
 export interface SubmitMoveResult {
@@ -363,6 +370,9 @@ interface GameContextValue extends GameState {
   explainMove: (fen: string, candidateUci: string) => Promise<void>;
   explainOpponentMove: () => Promise<void>;
   clearRateLimitError: () => void;
+  debateSkipped: boolean;
+  explainCooldowns: Record<string, number>;
+  opponentExplainCooldownUntil: number | null;
 }
 
 const GameContext = createContext<GameContextValue | null>(null);
@@ -494,7 +504,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }),
       });
       if (res.status === 429) {
-        setState(prev => ({ ...prev, isAnalyzing: false, rateLimitError: 'Too many requests — please wait a moment before moving.' }));
+        let msg = 'Too many requests — please wait a moment before moving.';
+        try {
+          const body = await res.json() as { retry_after_seconds?: number };
+          if (body.retry_after_seconds) msg = `Too many requests — try again in ${body.retry_after_seconds}s.`;
+        } catch { /* ignore */ }
+        setState(prev => ({ ...prev, isAnalyzing: false, rateLimitError: msg }));
         return null;
       }
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
@@ -526,6 +541,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         isAnalyzing: false,
         currentOpening: detectOpeningFull(data.fen_after) ?? prev.currentOpening,
         debateTranscript: data.debate_transcript ?? null,
+        debateSkipped: data.debate_skipped ?? false,
         explainMessage: null,
         lastEngineMoveUci: data.engine_move || null,
         fenBeforeEngineMove: data.engine_move ? data.fen_after : null,
@@ -556,7 +572,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
         }),
       });
       if (res.status === 429) {
-        setState(prev => ({ ...prev, isAnalyzing: false, rateLimitError: 'Too many requests — please wait a moment.' }));
+        let msg = 'Too many requests — please wait a moment.';
+        try {
+          const body = await res.json() as { retry_after_seconds?: number };
+          if (body.retry_after_seconds) msg = `Too many requests — try again in ${body.retry_after_seconds}s.`;
+        } catch { /* ignore */ }
+        setState(prev => ({ ...prev, isAnalyzing: false, rateLimitError: msg }));
         return;
       }
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
@@ -718,6 +739,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const explainMove = useCallback(async (fen: string, candidateUci: string): Promise<void> => {
+    // Layer 1: 3-second frontend cooldown per candidate square
+    if (Date.now() < (stateRef.current.explainCooldowns[candidateUci] ?? 0)) return;
+
     setState(prev => ({ ...prev, isExplaining: true, explainMessage: null }));
     try {
       const res = await fetch(`${BACKEND_URL}/api/explain-move`, {
@@ -729,12 +753,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
           persona: stateRef.current.persona,
         }),
       });
+      if (res.status === 429) {
+        let msg = 'Too many requests — please wait a moment.';
+        try {
+          const body = await res.json() as { retry_after_seconds?: number };
+          if (body.retry_after_seconds) msg = `Too many requests — try again in ${body.retry_after_seconds}s.`;
+        } catch { /* ignore */ }
+        setState(prev => ({ ...prev, isExplaining: false, rateLimitError: msg }));
+        return;
+      }
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
       const data = await res.json() as { explanation: string | null };
       setState(prev => ({
         ...prev,
         explainMessage: data.explanation ?? 'This move is close to optimal — no major issues.',
         isExplaining: false,
+        // Set 3s cooldown for this candidate square
+        explainCooldowns: { ...prev.explainCooldowns, [candidateUci]: Date.now() + 3_000 },
       }));
     } catch {
       setState(prev => ({ ...prev, isExplaining: false }));
@@ -742,8 +777,11 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const explainOpponentMove = useCallback(async (): Promise<void> => {
-    const { lastEngineMoveUci: uci, fenBeforeEngineMove: fenBefore, persona } = stateRef.current;
+    const { lastEngineMoveUci: uci, fenBeforeEngineMove: fenBefore, persona, opponentExplainCooldownUntil } = stateRef.current;
     if (!uci || !fenBefore) return;
+    // Layer 1: 5-second frontend cooldown
+    if (Date.now() < (opponentExplainCooldownUntil ?? 0)) return;
+
     setState(prev => ({ ...prev, isExplainingOpponent: true, opponentExplanation: null }));
     try {
       const res = await fetch(`${BACKEND_URL}/api/explain-opponent-move`, {
@@ -752,12 +790,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
         body: JSON.stringify({ fen_before: fenBefore, engine_move: uci, persona_id: persona }),
       });
       if (res.status === 429) {
-        setState(prev => ({ ...prev, isExplainingOpponent: false, rateLimitError: 'Too many requests — please wait a moment.' }));
+        let msg = 'Too many requests — please wait a moment.';
+        try {
+          const body = await res.json() as { retry_after_seconds?: number };
+          if (body.retry_after_seconds) msg = `Too many requests — try again in ${body.retry_after_seconds}s.`;
+        } catch { /* ignore */ }
+        setState(prev => ({ ...prev, isExplainingOpponent: false, rateLimitError: msg }));
         return;
       }
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
       const data = await res.json() as { explanation: string };
-      setState(prev => ({ ...prev, opponentExplanation: data.explanation, isExplainingOpponent: false }));
+      setState(prev => ({
+        ...prev,
+        opponentExplanation: data.explanation,
+        isExplainingOpponent: false,
+        // Set 5s cooldown
+        opponentExplainCooldownUntil: Date.now() + 5_000,
+      }));
     } catch {
       setState(prev => ({ ...prev, isExplainingOpponent: false }));
     }
@@ -817,6 +866,9 @@ export function GameProvider({ children }: { children: ReactNode }) {
       explainMove,
       explainOpponentMove,
       clearRateLimitError,
+      debateSkipped: state.debateSkipped,
+      explainCooldowns: state.explainCooldowns,
+      opponentExplainCooldownUntil: state.opponentExplainCooldownUntil,
     }}>
       {children}
     </GameContext.Provider>

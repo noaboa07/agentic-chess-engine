@@ -7,6 +7,10 @@ from langchain_core.messages import SystemMessage, HumanMessage
 from personas.personas import get_persona
 from services.telemetry import record_latency, record_error, record_cache_hit
 from services.cache import get_cached_coaching, set_cached_coaching
+from services.sanitize import (
+    sanitize_user_string, sanitize_san,
+    MAX_OPENING_LENGTH, MAX_SAN_LENGTH,
+)
 
 MODEL = "llama-3.3-70b-versatile"
 
@@ -50,11 +54,14 @@ def get_coaching_message(
         else f"{evaluation['value'] / 100:+.2f} pawns (white's perspective)"
     )
 
+    safe_move = sanitize_user_string(move_uci, MAX_SAN_LENGTH, "move")
+    safe_best = sanitize_user_string(best_move, MAX_SAN_LENGTH, "move")
+
     user_content = (
-        f"Move played: {move_uci}\n"
+        f"Move played: {safe_move}\n"
         f"Classification: {classification}\n"
         f"Evaluation after move: {eval_str}\n"
-        f"Engine's best move instead: {best_move}\n\n"
+        f"Engine's best move instead: {safe_best}\n\n"
         "Give me your coaching feedback."
     )
 
@@ -107,10 +114,12 @@ def explain_why_not(
         return None
 
     persona = get_persona(persona_id)
+    safe_candidate = sanitize_user_string(candidate_move, MAX_SAN_LENGTH, "move")
+    safe_best = sanitize_user_string(best_move, MAX_SAN_LENGTH, "move")
     prompt = (
-        f"The player is considering {candidate_move} instead of the stronger {best_move}. "
+        f"The player is considering {safe_candidate} instead of the stronger {safe_best}. "
         f"This costs approximately {cpl} centipawns. "
-        f"In 2-3 sentences, explain why {candidate_move} falls short and what {best_move} achieves. "
+        f"In 2-3 sentences, explain why {safe_candidate} falls short and what {safe_best} achieves. "
         "Stay in character."
     )
     messages = [
@@ -134,8 +143,9 @@ def explain_why_not(
 
 def on_opening_identified(opening_name: str, persona_id: str) -> str:
     persona = get_persona(persona_id)
+    safe_opening = sanitize_user_string(opening_name, MAX_OPENING_LENGTH, "opening")
     prompt = (
-        f"The player has entered the {opening_name}. "
+        f"The player has entered the {safe_opening}. "
         "Give a single, short coaching tip (1-2 sentences) about this opening's "
         "key ideas, threats, or pitfalls. Stay in character."
     )
@@ -203,15 +213,18 @@ def generate_coach_report(
     )[:3]
 
     critical_str = "\n".join(
-        f"  Move {n}: {m.get('san', '?')} — {m.get('classification', '?')} (CPL: {m.get('cpl', 0)})"
+        f"  Move {n}: {sanitize_san(m.get('san', '?'))} — {m.get('classification', '?')} (CPL: {m.get('cpl', 0)})"
         for n, m in worst_3
         if m.get("cpl", 0) > 30
     ) or "  No major errors recorded"
 
-    opening_sans = " ".join(m.get("san", "") for m in move_log[:10] if m.get("san"))
+    opening_sans = " ".join(
+        sanitize_san(m.get("san", "")) for m in move_log[:10] if m.get("san")
+    )
+    safe_opening = sanitize_user_string(opening_name, MAX_OPENING_LENGTH, "opening") if opening_name else None
     opening_line = (
-        f'Opening: {opening_name} (use this exact name for "opening_played")'
-        if opening_name
+        f'Opening: {safe_opening} (use this exact name for "opening_played")'
+        if safe_opening
         else (
             f'Opening moves played: {opening_sans}\n'
             f'Identify the opening name from these moves and use it for "opening_played". '

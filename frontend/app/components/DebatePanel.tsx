@@ -32,8 +32,16 @@ function AgentCard({ entry }: { entry: DebateEntry }) {
 }
 
 export default function DebatePanel() {
-  const { debateTranscript } = useGame();
+  const { debateTranscript, debateSkipped } = useGame();
   const [open, setOpen] = useState(false);
+
+  if (debateSkipped) {
+    return (
+      <div className="rounded-md bg-zinc-800 px-4 py-3 text-xs text-zinc-500 italic">
+        Analysis paused to preserve performance
+      </div>
+    );
+  }
 
   if (!debateTranscript || debateTranscript.length === 0) return null;
 

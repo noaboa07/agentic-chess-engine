@@ -73,7 +73,10 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
     globalMuted, setGlobalMuted, moveCount, resignGame,
     explainMessage, isExplaining,
     lastEngineMoveUci, opponentExplanation, isExplainingOpponent, explainOpponentMove,
+    opponentExplainCooldownUntil,
   } = useGame();
+
+  const opponentOnCooldown = opponentExplainCooldownUntil !== null && Date.now() < opponentExplainCooldownUntil;
 
   // TTS playback — gated by teach mode and global mute
   useEffect(() => {
@@ -241,10 +244,10 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
           {teachMode && lastEngineMoveUci && (
             <button
               onClick={() => void explainOpponentMove()}
-              disabled={isExplainingOpponent}
+              disabled={isExplainingOpponent || opponentOnCooldown}
               className="mt-1 w-full rounded-md bg-zinc-700 px-4 py-2 text-xs font-medium text-indigo-300 hover:bg-zinc-600 transition-colors disabled:opacity-50 disabled:cursor-not-allowed"
             >
-              {isExplainingOpponent ? 'Thinking…' : 'Why did AI play that?'}
+              {isExplainingOpponent ? 'Thinking…' : opponentOnCooldown ? 'Wait…' : 'Why did AI play that?'}
             </button>
           )}
           {teachMode && (isExplainingOpponent || opponentExplanation) && (

@@ -14,6 +14,17 @@ _AGENT_ROLES = [
     {"name": "Safety",     "focus": "king safety and avoiding unnecessary risks"},
 ]
 
+# ── Debate circuit breaker ────────────────────────────────────────────────────
+# Caps debate calls at DEBATE_CAP per game session to prevent Groq saturation
+# during blunder-heavy games. Keyed by session identifier (user_id or IP).
+DEBATE_CAP = 10
+_debate_counts: dict[str, int] = {}
+
+
+def reset_debate_counter(session_key: str) -> None:
+    """Reset the per-session debate counter. Call on game start."""
+    _debate_counts.pop(session_key, None)
+
 
 @lru_cache(maxsize=1)
 def _get_llm() -> ChatGroq:
@@ -29,15 +40,21 @@ def get_debate_transcript(
     top_lines: list[dict],
     cpl: int,
     persona_id: str,
-) -> list[dict] | None:
+    session_key: str = "default",
+) -> tuple[list[dict] | None, bool]:
     """
     Build a 3-agent debate transcript when the player made a significant error (CPL > 50).
     top_lines — pre-computed MultiPV candidates: [{"move": "e2e4", "cp": 45}, ...]
     Calls Groq exactly once (Final Arbiter summary). Everything else is deterministic.
-    Returns None when gate conditions are not met.
+    Returns (transcript, debate_skipped). debate_skipped=True when the circuit breaker fires.
     """
     if cpl <= 50 or len(top_lines) < 2:
-        return None
+        return None, False
+
+    current_count = _debate_counts.get(session_key, 0)
+    if current_count >= DEBATE_CAP:
+        return None, True
+    _debate_counts[session_key] = current_count + 1
 
     lines = top_lines[:3]
     transcript: list[dict] = []
@@ -89,4 +106,4 @@ def get_debate_transcript(
             "argument": arbiter,
         })
 
-    return transcript
+    return transcript, False

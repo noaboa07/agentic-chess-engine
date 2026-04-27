@@ -1,12 +1,23 @@
 'use client';
 
-import { useEffect, useState } from 'react';
+import { useEffect, useState, useCallback } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
 import { useAuth } from '../context/AuthContext';
 import { PERSONAS, type PersonaId, type DescentNumber } from '../context/GameContext';
-import { getCampaignProgress, type CampaignStatus } from '../../lib/db';
+import {
+  getCampaignProgress, getCampaignLossCounts, skipPersona, unlockPersona,
+  type CampaignStatus,
+} from '../../lib/db';
 import BossFightModal from '../components/BossFightModal';
+
+// Finals of each Descent — cannot be skipped
+const GATE_GENERALS = new Set<PersonaId>([
+  'brother_oedric',
+  'magister_tobias',
+  'boros',
+  'dread_hades',
+]);
 
 const BOSS_DESCRIPTION: Record<string, string> = {
   pawnstorm_petey:          'Shoves every pawn forward on turn one and hangs pieces constantly. Pure chaos.',
@@ -84,6 +95,13 @@ function StatusBadge({ status }: { status: CampaignStatus | undefined }) {
       </span>
     );
   }
+  if (status === 'skipped') {
+    return (
+      <span className="flex items-center gap-1 text-xs font-semibold text-amber-400 bg-amber-400/10 px-2 py-0.5 rounded-full">
+        ↷ Skipped
+      </span>
+    );
+  }
   return (
     <span className="flex items-center gap-1 text-xs font-semibold text-zinc-600 bg-zinc-800 px-2 py-0.5 rounded-full">
       🔒 Locked
@@ -96,16 +114,33 @@ interface FightTarget { personaId: PersonaId; name: string; elo: number; descrip
 export default function CampaignPage() {
   const { user } = useAuth();
   const [progress, setProgress] = useState<Record<string, CampaignStatus>>({});
+  const [lossCounts, setLossCounts] = useState<Record<string, number>>({});
   const [loading, setLoading] = useState(true);
   const [fightTarget, setFightTarget] = useState<FightTarget | null>(null);
 
+  const refreshProgress = useCallback(async () => {
+    if (!user) return;
+    const [prog, losses] = await Promise.all([
+      getCampaignProgress(user.id).catch(() => ({} as Record<string, CampaignStatus>)),
+      getCampaignLossCounts(user.id).catch(() => ({} as Record<string, number>)),
+    ]);
+    setProgress(prog);
+    setLossCounts(losses);
+  }, [user]);
+
   useEffect(() => {
     if (!user) { setLoading(false); return; }
-    getCampaignProgress(user.id)
-      .then(setProgress)
-      .catch(() => setProgress({}))
-      .finally(() => setLoading(false));
-  }, [user]);
+    refreshProgress().finally(() => setLoading(false));
+  }, [user, refreshProgress]);
+
+  const handleSkip = useCallback(async (personaId: PersonaId) => {
+    if (!user) return;
+    const personaIndex = PERSONAS.findIndex(p => p.id === personaId);
+    const next = PERSONAS[personaIndex + 1];
+    await skipPersona(user.id, personaId);
+    if (next) await unlockPersona(user.id, next.id);
+    await refreshProgress();
+  }, [user, refreshProgress]);
 
   return (
     <main className="h-full overflow-y-auto bg-zinc-950 text-white">
@@ -150,6 +185,9 @@ export default function CampaignPage() {
                       const status = progress[persona.id] ?? (globalIdx === 0 ? 'available' : 'locked');
                       const isLocked = status === 'locked';
                       const isAvailable = status === 'available';
+                      const isSkipped = status === 'skipped';
+                      const losses = lossCounts[persona.id] ?? 0;
+                      const canSkip = isAvailable && losses >= 3 && !GATE_GENERALS.has(persona.id);
 
                       return (
                         <div key={persona.id}>
@@ -159,12 +197,14 @@ export default function CampaignPage() {
                                 ? 'border-zinc-800 bg-zinc-900/40 opacity-60'
                                 : status === 'complete'
                                 ? 'border-emerald-800/50 bg-emerald-950/20'
+                                : isSkipped
+                                ? 'border-amber-600/40 bg-amber-950/20'
                                 : 'border-indigo-500/40 bg-zinc-900 ring-1 ring-indigo-500/30 shadow-[0_0_16px_rgba(99,102,241,0.2)] animate-pulse'
                             }`}
                           >
                             <div className="flex items-center gap-4">
                               {/* Avatar */}
-                              <div className={`shrink-0 rounded-xl overflow-hidden ${isLocked ? 'grayscale' : ''}`}>
+                              <div className={`shrink-0 rounded-xl overflow-hidden ${isLocked ? 'grayscale' : isSkipped ? 'opacity-70' : ''}`}>
                                 <Image
                                   src={`/avatars/${persona.id}.svg`}
                                   alt={persona.name}
@@ -186,28 +226,48 @@ export default function CampaignPage() {
                                 </p>
                                 {!isLocked && (
                                   <p className="text-[11px] text-zinc-600 mt-0.5">
-                                    {persona.description}
+                                    {isSkipped ? 'Skipped — rematch available any time' : persona.description}
+                                  </p>
+                                )}
+                                {isAvailable && losses > 0 && !isSkipped && (
+                                  <p className="text-[10px] text-zinc-600 mt-0.5">
+                                    {losses} loss{losses !== 1 ? 'es' : ''} against this general
+                                    {canSkip ? ' — skip available' : ` — ${3 - losses} more to unlock skip`}
                                   </p>
                                 )}
                               </div>
 
-                              {/* Action */}
-                              {isAvailable && (
-                                <button
-                                  onClick={() => setFightTarget({ personaId: persona.id, name: persona.name, elo: persona.elo, description: persona.description })}
-                                  className="shrink-0 rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 transition-colors whitespace-nowrap"
-                                >
-                                  Fight Boss
-                                </button>
-                              )}
-                              {status === 'complete' && (
-                                <Link
-                                  href={`/play?campaign=${persona.id}`}
-                                  className="shrink-0 rounded-lg border border-emerald-700/40 px-4 py-2 text-xs font-medium text-emerald-400 hover:bg-emerald-900/20 transition-colors whitespace-nowrap"
-                                >
-                                  Rematch
-                                </Link>
-                              )}
+                              {/* Actions */}
+                              <div className="shrink-0 flex flex-col gap-1.5">
+                                {isAvailable && (
+                                  <button
+                                    onClick={() => setFightTarget({ personaId: persona.id, name: persona.name, elo: persona.elo, description: persona.description })}
+                                    className="rounded-lg bg-indigo-600 px-4 py-2 text-xs font-semibold text-white hover:bg-indigo-500 transition-colors whitespace-nowrap"
+                                  >
+                                    Fight Boss
+                                  </button>
+                                )}
+                                {canSkip && (
+                                  <button
+                                    onClick={() => void handleSkip(persona.id)}
+                                    className="rounded-lg border border-amber-600/40 px-4 py-2 text-xs font-medium text-amber-400 hover:bg-amber-900/20 transition-colors whitespace-nowrap"
+                                  >
+                                    Skip for now
+                                  </button>
+                                )}
+                                {(status === 'complete' || isSkipped) && (
+                                  <Link
+                                    href={`/play?campaign=${persona.id}`}
+                                    className={`rounded-lg border px-4 py-2 text-xs font-medium transition-colors whitespace-nowrap text-center ${
+                                      isSkipped
+                                        ? 'border-amber-700/40 text-amber-400 hover:bg-amber-900/20'
+                                        : 'border-emerald-700/40 text-emerald-400 hover:bg-emerald-900/20'
+                                    }`}
+                                  >
+                                    Rematch
+                                  </Link>
+                                )}
+                              </div>
                             </div>
                           </div>
 

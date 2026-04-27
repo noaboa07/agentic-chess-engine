@@ -1,16 +1,20 @@
+import base64
+import json as _json
+import threading
 import time
+from collections import defaultdict
 from fastapi import FastAPI, HTTPException, Request
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse, Response
 from pydantic import BaseModel
 import chess
 from dotenv import load_dotenv
-from slowapi import Limiter, _rate_limit_exceeded_handler
+from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from services.stockfish import analyze_move, get_engine_first_move
 from services.coach import get_coaching_message, generate_coach_report, on_opening_identified, explain_why_not
-from services.debate import get_debate_transcript
+from services.debate import get_debate_transcript, reset_debate_counter
 from services.tts import generate_speech
 from services.telemetry import record_latency, record_error, get_stats
 from services.cache import cache_stats
@@ -18,11 +22,68 @@ from personas.personas import get_persona
 
 load_dotenv()
 
+
+# ── Rate limiting ─────────────────────────────────────────────────────────────
+
+def _get_jwt_user_id(request: Request) -> str:
+    """Extract Supabase user ID from JWT for per-user rate limiting.
+    Decodes payload without signature verification — safe for rate limiting only.
+    Falls back to IP address if JWT is absent or malformed."""
+    auth = request.headers.get("Authorization", "")
+    if not auth.startswith("Bearer "):
+        return get_remote_address(request)
+    try:
+        payload_b64 = auth[7:].split(".")[1]
+        payload_b64 += "=" * (4 - len(payload_b64) % 4)
+        payload = _json.loads(base64.urlsafe_b64decode(payload_b64))
+        user_id = payload.get("sub")
+        return user_id if user_id else get_remote_address(request)
+    except Exception:
+        return get_remote_address(request)
+
+
+# IP-based limiter (existing — coarse protection)
 limiter = Limiter(key_func=get_remote_address)
+
+# Per-user sliding-window rate limiter (Layer 2 — identity-bound LLM protection)
+_user_buckets: dict[str, list[float]] = defaultdict(list)
+_bucket_lock = threading.Lock()
+
+
+def _check_user_limit(user_id: str, limit: int, window_secs: int = 60) -> tuple[bool, int]:
+    """Sliding window check. Returns (is_allowed, retry_after_seconds)."""
+    now = time.time()
+    with _bucket_lock:
+        history = [t for t in _user_buckets[user_id] if now - t < window_secs]
+        if len(history) >= limit:
+            oldest = min(history)
+            retry_after = max(1, int(window_secs - (now - oldest)) + 1)
+            _user_buckets[user_id] = history
+            return False, retry_after
+        history.append(now)
+        _user_buckets[user_id] = history
+        return True, 0
+
+
+def _rate_limited_response(retry_after: int) -> JSONResponse:
+    return JSONResponse(
+        status_code=429,
+        content={
+            "error": "rate_limit",
+            "message": "Too many requests — slow down",
+            "retry_after_seconds": retry_after,
+        },
+        headers={"Retry-After": str(retry_after)},
+    )
+
+
+async def _custom_rate_limit_handler(request: Request, exc: RateLimitExceeded) -> JSONResponse:
+    return _rate_limited_response(60)
+
 
 app = FastAPI(title="Agentic Chess Engine API")
 app.state.limiter = limiter
-app.add_exception_handler(RateLimitExceeded, _rate_limit_exceeded_handler)
+app.add_exception_handler(RateLimitExceeded, _custom_rate_limit_handler)
 
 app.add_middleware(
     CORSMiddleware,
@@ -120,7 +181,12 @@ def new_game(req: NewGameRequest) -> dict:
 
 @app.post("/api/move")
 @limiter.limit("60/minute")
-def process_move(request: Request, req: MoveRequest) -> dict:
+def process_move(request: Request, req: MoveRequest):
+    user_id = _get_jwt_user_id(request)
+    allowed, retry_after = _check_user_limit(user_id, limit=30, window_secs=60)
+    if not allowed:
+        return _rate_limited_response(retry_after)
+
     try:
         persona = get_persona(req.persona)
 
@@ -161,8 +227,11 @@ def process_move(request: Request, req: MoveRequest) -> dict:
 
         cpl = max(0, -result.eval_delta)
         debate_transcript = None
+        debate_skipped = False
         try:
-            debate_transcript = get_debate_transcript(result.top_lines, cpl, req.persona)
+            debate_transcript, debate_skipped = get_debate_transcript(
+                result.top_lines, cpl, req.persona, session_key=user_id,
+            )
         except Exception:
             debate_transcript = None
 
@@ -177,6 +246,7 @@ def process_move(request: Request, req: MoveRequest) -> dict:
             "coach_message": coach_message,
             "coach_cache_hit": coach_cache_hit,
             "debate_transcript": debate_transcript,
+            "debate_skipped": debate_skipped,
         }
     except ValueError as e:
         raise HTTPException(status_code=400, detail=str(e))
@@ -187,7 +257,9 @@ def process_move(request: Request, req: MoveRequest) -> dict:
 
 
 @app.post("/api/engine-first-move")
-def engine_first_move(req: EngineFirstMoveRequest) -> dict:
+def engine_first_move(request: Request, req: EngineFirstMoveRequest) -> dict:
+    # Reset per-user debate counter when a new game starts
+    reset_debate_counter(_get_jwt_user_id(request))
     try:
         persona = get_persona(req.persona)
         move = get_engine_first_move(
@@ -224,7 +296,11 @@ def telemetry() -> dict:
 
 @app.post("/api/coach-report")
 @limiter.limit("20/minute")
-def coach_report(request: Request, req: CoachReportRequest) -> dict:
+def coach_report(request: Request, req: CoachReportRequest):
+    user_id = _get_jwt_user_id(request)
+    allowed, retry_after = _check_user_limit(user_id, limit=3, window_secs=60)
+    if not allowed:
+        return _rate_limited_response(retry_after)
     try:
         if len(req.move_log) < 3:
             raise HTTPException(status_code=400, detail="Game too short for report")
@@ -244,7 +320,11 @@ def coach_report(request: Request, req: CoachReportRequest) -> dict:
 
 @app.post("/api/explain-move")
 @limiter.limit("20/minute")
-def explain_move_endpoint(request: Request, req: ExplainMoveRequest) -> dict:
+def explain_move_endpoint(request: Request, req: ExplainMoveRequest):
+    user_id = _get_jwt_user_id(request)
+    allowed, retry_after = _check_user_limit(user_id, limit=10, window_secs=60)
+    if not allowed:
+        return _rate_limited_response(retry_after)
     try:
         from services.stockfish import STOCKFISH_PATH, DEPTH, _score_to_cp
         import chess.engine as _ce
@@ -318,7 +398,11 @@ def evaluate_premove(request: Request, req: EvaluatePreMoveRequest) -> dict:
 
 @app.post("/api/explain-opponent-move")
 @limiter.limit("20/minute")
-def explain_opponent_move_endpoint(request: Request, req: ExplainOpponentMoveRequest) -> dict:
+def explain_opponent_move_endpoint(request: Request, req: ExplainOpponentMoveRequest):
+    user_id = _get_jwt_user_id(request)
+    allowed, retry_after = _check_user_limit(user_id, limit=10, window_secs=60)
+    if not allowed:
+        return _rate_limited_response(retry_after)
     try:
         from services.coach import explain_opponent_move
         explanation = explain_opponent_move(req.fen_before, req.engine_move, req.persona_id)

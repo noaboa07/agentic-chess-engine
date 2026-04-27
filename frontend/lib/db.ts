@@ -369,7 +369,7 @@ export async function getLeaderboard(mode: EloMode = 'Untimed', limit = 50): Pro
 
 // ── Campaign Progress ─────────────────────────────────────────────────────────
 
-export type CampaignStatus = 'locked' | 'available' | 'complete';
+export type CampaignStatus = 'locked' | 'available' | 'complete' | 'skipped';
 
 export async function getCampaignProgress(userId: string): Promise<Record<string, CampaignStatus>> {
   const { data, error } = await supabase
@@ -402,6 +402,33 @@ export async function completePersona(userId: string, personaId: string): Promis
     .eq('user_id', userId)
     .eq('persona_id', personaId);
   if (error) throw error;
+}
+
+export async function skipPersona(userId: string, personaId: string): Promise<void> {
+  const { error } = await supabase.from('campaign_progress').upsert({
+    user_id: userId,
+    persona_id: personaId,
+    status: 'skipped',
+    unlocked_at: new Date().toISOString(),
+  });
+  if (error) throw error;
+}
+
+export async function getCampaignLossCounts(userId: string): Promise<Record<string, number>> {
+  // TODO: skip_count column in campaign_progress is intended to track this server-side.
+  // Currently derived from the games table to avoid a new game-end write hook.
+  const { data, error } = await supabase
+    .from('games')
+    .select('opponent_id, result')
+    .eq('user_id', userId)
+    .in('result', ['loss', 'resigned']);
+  if (error) return {};
+  const counts: Record<string, number> = {};
+  for (const row of data ?? []) {
+    const id = (row as { opponent_id: string; result: string }).opponent_id;
+    counts[id] = (counts[id] ?? 0) + 1;
+  }
+  return counts;
 }
 
 // ── Puzzles ───────────────────────────────────────────────────────────────────
