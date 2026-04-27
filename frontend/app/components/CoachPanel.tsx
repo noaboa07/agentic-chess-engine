@@ -185,9 +185,10 @@ export default function CoachPanel({ onLeaveGame }: CoachPanelProps = {}) {
       {onLeaveGame && (
         <button
           onClick={onLeaveGame}
-          className="mb-4 w-full rounded-md border border-white/10 bg-zinc-800 px-4 py-2 text-xs font-medium text-zinc-400 hover:bg-zinc-700 hover:text-zinc-200 transition-colors"
+          className="mb-4 w-full inline-flex items-center justify-center gap-1.5 px-4 py-2 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150"
         >
-          ← Change Opponent
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          Change Opponent
         </button>
       )}
 

@@ -97,7 +97,10 @@ export default function SettingsPage() {
 
         {/* Header */}
         <div className="flex items-center gap-4 mb-2">
-          <Link href="/" className="text-sm text-zinc-400 hover:text-white transition-colors">← Back</Link>
+          <Link href="/" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back
+          </Link>
           <h1 className="text-2xl font-bold">Settings</h1>
         </div>
 

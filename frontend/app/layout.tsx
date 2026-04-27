@@ -28,8 +28,8 @@ const jetbrainsMono = JetBrains_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "The Noah Verse",
-  description: "13 AI personas. One board. Zero mercy.",
+  title: "Caïssa",
+  description: "15 AI generals. One descent. Zero mercy.",
 };
 
 export default function RootLayout({

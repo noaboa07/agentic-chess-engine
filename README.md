@@ -1,6 +1,6 @@
 <div align="center">
 
-# ♟ The Noah Verse
+# ♟ Agentic Chess Engine
 
 **A next-generation AI chess training platform where every opponent is a fully autonomous agent — with a distinct personality, a calibrated Elo, real-time coaching, a campaign ladder, replay analysis, and personalized training.**
 
@@ -21,7 +21,7 @@
 
 ## The Concept
 
-Most chess apps give you a difficulty slider. The Noah Verse gives you **13 distinct opponents** — each a fully realized AI agent with its own personality, communication style, and strategic identity. From a blunder-prone chaos machine at 150 Elo to an all-knowing 2700-rated deity, every agent is backed by a Stockfish engine profile and an LLM that generates real-time coaching, trash talk, post-game analysis, and multi-agent move debates — all in character.
+Most chess apps give you a difficulty slider. This platform gives you **15 distinct opponents** — each a fully realized AI agent with its own personality, communication style, and strategic identity. Organized as the **Hells of Caïssa**: four Descents of increasingly dangerous Generals, from Pawnstorm Petey at 200 Elo to Dread Hades, Lord of the 64 Hells, at 3000. Every agent is backed by a Stockfish engine profile and an LLM that generates real-time coaching, trash talk, post-game analysis, and multi-agent move debates — all in character.
 
 Beyond head-to-head play, the platform is a complete chess training system: a campaign progression ladder with tier groupings and pre-fight briefings, game history replay with move-by-move evaluation, a progress dashboard with CPL trends and weakness heatmaps, an auto-generated puzzle feed from your own blunders, a personalized training plan, and a 15-achievement badge system — all without leaving the app. A fully static `/demo` route lets recruiters explore the platform without signing in.
 
@@ -29,25 +29,44 @@ Beyond head-to-head play, the platform is a complete chess training system: a ca
 
 ## Features
 
-### 🤖 13-Agent Persona System
+### 🤖 15-Agent Persona System — The Hells of Caïssa
 
-Each agent spans a unique slice of the Elo spectrum with hand-crafted personality, a custom SVG avatar, and a dedicated per-persona music soundtrack:
+Each agent spans a unique slice of the Elo spectrum with hand-crafted personality, a custom SVG avatar, and a dedicated per-persona music soundtrack. The campaign is organized into four **Descents**:
 
-| Agent | Elo | Archetype |
-|---|---|---|
-| Roomba Noah | 150 | Pure chaos. Completely random moves, zero engine evaluation. |
-| Clown Noah | 300 | Overconfident. Blunders constantly. Doesn't know it. |
-| Tilted Noah | 500 | Emotionally compromised. Hangs pieces. Blames you. |
-| Sleep-Deprived Noah | 700 | Solid for a few moves, then completely collapses. |
-| Gym Bro Noah | 900 | Brash. Good fundamentals, terrible endgame. |
-| Coffee Shop Noah | 1100 | Calculated and composed. Occasional creative lapse. |
-| Tech Bro Noah | 1300 | Optimizes aggressively. Underestimates opponents. |
-| Rat Main Noah | 1500 | Hyper-prepared. Obsessed with the Sicilian. |
-| Grandmaster Twitch Noah | 1700 | High-variance. Brilliant tactics, streamer tilt. |
-| 4.0 GPA Noah | 1900 | Methodical. Never a mistake, rarely inspired. |
-| Devil Noah | 2100 | Punishes every inaccuracy. Cold and precise. |
-| Angel Noah | 2300 | Positionally dominant. Suffocates slowly. |
-| God Noah | 2700 | Omniscient. Perfect play. Zero mercy. |
+**First Descent — The Outer Hells**
+
+| General | Elo | Sin | Archetype |
+|---|---|---|---|
+| Pawnstorm Petey | 200 | Recklessness | Shoves every pawn forward. No piece ever moves. |
+| Grizelda the Greedy | 400 | Greed | Captures everything in reach regardless of consequences. |
+| Brother Oedric the Slothful | 600 | Sloth | Passive Hippo setup. Never initiates. Punishes impatience. |
+
+**Second Descent — The Middle Hells**
+
+| General | Elo | Sin | Archetype |
+|---|---|---|---|
+| Sir Vance the Vain | 800 | Vanity | Scholar's Mate every game. Collapses completely if defended. |
+| Lady Cassandra Bloodwine | 1000 | Wrath | All romantic gambits — King's Gambit, Danish, Smith-Morra. |
+| The Hippomancer | 1200 | Sloth | Summons the ancient Hippo Formation. Never breaks it. |
+
+**Third Descent — The Deep Hells**
+
+| General | Elo | Sin | Archetype |
+|---|---|---|---|
+| Magister Tobias the Pedant | 1400 | Pride | 22 moves of mainline theory. Lost in any sideline. |
+| Wrathful Vex | 1600 | Wrath | Forces tactics everywhere. Half are hallucinations. |
+| The Mirror Maiden | 1800 | Envy | Positional grind. Accumulates tiny advantages until you suffocate. |
+| Lady Vipra the Coiled | 2000 | Lust | Premoves everything. Plays for flag. Serpentine speed. |
+
+**Fourth Descent — The Abyss**
+
+| General | Elo | Sin | Archetype |
+|---|---|---|---|
+| Boros the Time Devourer | 2100 | Gluttony | Trades everything to endgames. Surgical technique. |
+| The Reaper of Pawns | 2300 | Death | Hunts every loose pawn. Converts with clinical precision. |
+| Oracle Nyx the Paranoid | 2500 | Paranoia | Denies your plans before you form them. Karpovian prophylaxis. |
+| The Fallen Champion | 2700 | Pride | Adaptive. Universal style. Targets your specific weaknesses. |
+| Dread Hades, Lord of the 64 Hells | 3000 | All sins | Final boss. Knows your full campaign history. Zero mercy. |
 
 Each agent uses a **tiered engine backend**: randomized move selection at the low end, blended random/skill weighting in the mid-tier, and `UCI_LimitStrength + UCI_Elo` for the upper tier — ensuring authentic, differentiated gameplay at every level.
 
@@ -55,27 +74,29 @@ Each agent uses a **tiered engine backend**: randomized move selection at the lo
 
 ### 🗺 Campaign / Progression System
 
-A linear unlock ladder lets you climb through all 13 personas with structured learning goals. Each persona is assigned a lesson focus:
+A linear unlock chain lets you descend through all 15 Generals with structured learning goals. Each General teaches a specific chess concept:
 
-| Persona | Lesson Focus |
+| General | Lesson Focus |
 |---|---|
-| Roomba Noah | Moving pieces legally |
-| Clown Noah | Basic captures |
-| Tilted Noah | Opening principles |
-| Sleep-Deprived Noah | Avoiding blunders |
-| Gym Bro Noah | Tactics — forks & pins |
-| Coffee Shop Noah | Pawn structure |
-| Tech Bro Noah | Positional play |
-| Rat Main Noah | Endgame fundamentals |
-| Grandmaster Twitch Noah | Attack patterns |
-| 4.0 GPA Noah | Strategic planning |
-| Devil Noah | Complex combinations |
-| Angel Noah | Defense & counterplay |
-| God Noah | Full game mastery |
+| Pawnstorm Petey | Punish overextension, develop pieces, basic capture tactics |
+| Grizelda the Greedy | When not to trade, piece activity over material count |
+| Brother Oedric the Slothful | Break down a fortress, prophylaxis, not blundering when bored |
+| Sir Vance the Vain | Refute cheap opening traps without panicking |
+| Lady Cassandra Bloodwine | Defending against sacrifices, converting won endgames |
+| The Hippomancer | Patience vs. a fortress, how to create imbalances |
+| Magister Tobias the Pedant | Principles over memorization, navigating unfamiliar positions |
+| Wrathful Vex | Calculation, defending against threats, recognizing hallucinated tactics |
+| The Mirror Maiden | Positional understanding, recognizing slow strategic pressure |
+| Lady Vipra the Coiled | Time management, calm under pressure, punishing speed inaccuracy |
+| Boros the Time Devourer | Endgame fundamentals, why you can't rely on the middlegame |
+| The Reaper of Pawns | Pawn discipline, prophylactic defense, converting material up |
+| Oracle Nyx the Paranoid | Planning, candidate moves, playing with a plan instead of reacting |
+| The Fallen Champion | Universal preparation — adapt your strengths to the opponent |
+| Dread Hades | Full game mastery across all phases |
 
-**Unlock logic:** Roomba Noah is always available. Win against a persona to unlock the next one. Progress is stored in Supabase (`campaign_progress` table, RLS-enforced) and persists across sessions. Campaign games auto-start in Teach Mode with no time control.
+**Unlock logic:** Pawnstorm Petey is always available. Win against a General to unlock the next. Progress is stored in Supabase (`campaign_progress` table, RLS-enforced) and persists across sessions. Campaign games use no time control and **Teach Mode is off** — use Free Play with Teach Mode to prepare, then apply what you learned in Campaign.
 
-**Tier groupings:** The campaign ladder is divided into five named tiers — Beginner Chaos, Fundamentals, Tactical Arena, Positional Masters, and Final Bosses — with visual connector lines between cards that turn emerald as you clear each tier.
+**Descent groupings:** The campaign ladder is divided into four named Descents — The Outer Hells, The Middle Hells, The Deep Hells, and The Abyss — with visual connector lines between cards that turn emerald as you clear each General.
 
 **Pre-fight briefing:** Clicking "Fight Boss" opens a `BossFightModal` showing the persona's lesson focus, a "Watch Out" tip, and the reward before you commit. "Start Fight" navigates directly to the game.
 
@@ -98,7 +119,7 @@ A linear unlock ladder lets you climb through all 13 personas with structured le
 | tactic_finder | Tactic Finder | Silver | Solve 10 puzzles |
 | boss_slayer | Boss Slayer | Silver | Win any campaign fight |
 | ladder_climber | Ladder Climber | Gold | Complete 5 or more campaign bosses |
-| god_slayer | God Slayer | Platinum | Beat God Noah |
+| god_slayer | God Slayer | Platinum | Beat Dread Hades |
 | scholar | Scholar | Bronze | View any game replay |
 | opening_student | Opening Student | Bronze | Open the Opening Explorer |
 | coachable | Coachable | Silver | Request "Explain last move" 5 times |
@@ -203,13 +224,13 @@ Every completed game is saved with a full `MoveRecord[]` (FEN, SAN, CPL, classif
 
 The **Dashboard** page aggregates your last 50 games and visualizes your improvement over time:
 
-- **Elo history** — pure SVG line chart of rating across recent games
-- **CPL trend** — average centipawn loss per game, last 10 games
+- **Elo history** — pure SVG line chart of rating across recent games; hover any point to see "Game N · Rating: XXXX"
+- **CPL trend** — average centipawn loss per game, last 10 games; hover any point to see "Game N · CPL: XX"
 - **Classification breakdown** — horizontal bar chart of Brilliant / Great / Good / Inaccuracy / Mistake / Blunder distribution
 - **Win rate by persona** — table showing W/L/D for each opponent you've faced
 - **Summary stat cards** — total games, win rate, avg CPL, blunders per game
 
-No external chart library — all visualizations are hand-written SVG.
+No external chart library — all visualizations are hand-written SVG with native React hover state for tooltips.
 
 ---
 
@@ -234,8 +255,10 @@ After every game, blunders and mistakes (where a `bestMove` was recorded) are au
 
 - Board shows the position just before your blunder
 - Prompt: "Find the best move in this position"
-- Drag-to-play: correct move → success animation; wrong move → shows the right answer
+- **3-strike retry system** — wrong moves show an attempt-aware feedback banner ("Wrong — X attempts remaining") without immediately revealing the answer; after 3 failed attempts a "Give Up" button appears
+- Correct move → success animation; Give Up → reveals the best move with explanation
 - Progress bar and prev/next navigation through your personal puzzle set
+- **Position quality filter** — puzzles are skipped if the player was already losing by 4+ pawns before the blunder, ensuring puzzles reflect genuine missed opportunities rather than already-lost positions
 - Solved puzzles are marked and de-prioritized on next visit
 
 Puzzle solving is entirely client-side — no API calls, pure UCI string comparison.
@@ -394,7 +417,7 @@ The **Settings page** (`/settings`) is divided into four sections:
 
 ### 🗺 Campaign UX Polish
 
-**Boss intro taunts:** The `BossFightModal` shows a per-persona italic taunt line below the Elo rating — e.g., *"There is no move you can make that I have not already calculated."* for God Noah. One line per persona, all 13 covered.
+**Boss intro taunts:** The `BossFightModal` shows a per-General italic taunt line below the Elo rating — e.g., *"I have watched every soul that fell before you. I know exactly where you break."* for Dread Hades. One line per General, all 15 covered.
 
 **Available-boss glow:** Unlocked, not-yet-beaten persona cards animate with `ring-1 ring-indigo-500/30 shadow-[0_0_16px_rgba(99,102,241,0.2)] animate-pulse` to draw the eye to the next target.
 
@@ -667,9 +690,9 @@ ALTER TABLE public.user_achievements ENABLE ROW LEVEL SECURITY;
 CREATE POLICY "Users manage own achievements" ON public.user_achievements
   USING (auth.uid() = user_id) WITH CHECK (auth.uid() = user_id);
 
--- Seed first campaign persona for all existing users
+-- Seed first campaign general for all existing users
 INSERT INTO public.campaign_progress (user_id, persona_id, status)
-  SELECT id, 'roomba_noah', 'available' FROM public.users
+  SELECT id, 'pawnstorm_petey', 'available' FROM public.users
   ON CONFLICT DO NOTHING;
 ```
 
@@ -706,7 +729,7 @@ cd backend
 pytest tests/ -v
 ```
 
-Covers: CPL classification boundaries, Elo math (K-factor / outcomes / floor / upsets), all 13 persona strategy profile invariants.
+Covers: CPL classification boundaries, Elo math (K-factor / outcomes / floor / upsets), all 15 general strategy profile invariants.
 
 **Frontend (Jest):**
 
@@ -726,7 +749,7 @@ agentic-chess-engine/
 ├── backend/
 │   ├── main.py                        # All FastAPI routes + slowapi rate limiting
 │   ├── personas/
-│   │   └── personas.py                # 13-persona ladder + strategy profiles
+│   │   └── personas.py                # 15-general Hells of Caïssa roster + strategy profiles
 │   ├── services/
 │   │   ├── stockfish.py               # Engine reply, CPL analysis, mate cap
 │   │   ├── coach.py                   # LLM coaching, report, explain-why-not, explain-opponent
@@ -744,7 +767,7 @@ agentic-chess-engine/
     │   ├── error.tsx                  # Global error boundary
     │   ├── demo/page.tsx              # Static demo (no auth) — Dashboard/Weaknesses/Puzzles/Replay tabs
     │   ├── play/page.tsx              # Lobby ↔ game phase controller, campaign auto-start
-    │   ├── campaign/page.tsx          # Tiered persona ladder, BossFightModal, unlock status
+    │   ├── campaign/page.tsx          # Descent-based general ladder, BossFightModal, unlock status
     │   ├── dashboard/page.tsx         # Stats, charts, training plan
     │   ├── puzzles/page.tsx           # Blunder puzzle feed
     │   ├── replay/[gameId]/page.tsx   # Move-by-move game replay viewer
@@ -770,7 +793,7 @@ agentic-chess-engine/
     │   │   ├── AtmosphereBackground.tsx # Crossfade music + vignette
     │   │   └── landing/
     │   │       ├── ChessBoardHero.tsx # Terminal-style engine output panel (hero right column)
-    │   │       └── PersonaLadder.tsx  # 13-persona roster strip with avatars + Elo
+    │   │       └── PersonaLadder.tsx  # 15-general roster strip with avatars + Elo
     │   └── context/
     │       ├── GameContext.tsx        # Full game state + campaign + puzzles + rate-limit error
     │       ├── AuthContext.tsx        # Supabase auth gate

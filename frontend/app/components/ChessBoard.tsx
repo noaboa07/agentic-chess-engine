@@ -11,7 +11,7 @@ import { useAchievements } from '../context/AchievementContext';
 import ChessClock from './ChessClock';
 import { playSfx, preloadSfx, type SfxName } from '../../lib/audio';
 import { getStoredThemeId, getThemeById } from '../../lib/themes';
-import { getSettings } from '../../lib/settings';
+import { useSettings } from '../../lib/settings';
 import GameOverModal from './GameOverModal';
 import BlunderConfirmModal from './BlunderConfirmModal';
 import OpeningExplorerModal from './OpeningExplorerModal';
@@ -19,7 +19,7 @@ import Toast from './Toast';
 import { findOpeningEntry } from '../../lib/openings-explorer';
 
 const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
-const BOARD_WIDTH = 560;
+const BOARD_WIDTH = 640;
 const SQUARE_SIZE = BOARD_WIDTH / 8;
 const FILES = ['a', 'b', 'c', 'd', 'e', 'f', 'g', 'h'] as const;
 const ARROW_COLOR = 'rgba(255, 170, 0, 0.75)';
@@ -163,7 +163,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
   const [arrows, setArrows] = useState<ArrowTuple[]>([]);
   const [selectedSquare, setSelectedSquare] = useState<Square | null>(null);
   const [boardTheme] = useState(() => getThemeById(getStoredThemeId()));
-  const [settings] = useState(() => getSettings());
+  const { settings } = useSettings();
   const [openingModalOpen, setOpeningModalOpen] = useState(false);
 
   interface PendingMove {
@@ -215,6 +215,22 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
   const handleRematch = useCallback(() => {
     void acknowledgeGameOver();
   }, [acknowledgeGameOver]);
+
+  const handleGoHomeClick = useCallback(() => {
+    void acknowledgeGameOver().then(() => onGoHome?.());
+  }, [acknowledgeGameOver, onGoHome]);
+
+  const handleChangeOpponentClick = useCallback(() => {
+    void acknowledgeGameOver().then(() => onChangeOpponent?.());
+  }, [acknowledgeGameOver, onChangeOpponent]);
+
+  const handleViewReplayClick = useCallback(() => {
+    void acknowledgeGameOver().then(() => router.push('/profile'));
+  }, [acknowledgeGameOver, router]);
+
+  const handleViewReportClick = useCallback(() => {
+    void acknowledgeGameOver().then(() => onViewReport?.());
+  }, [acknowledgeGameOver, onViewReport]);
 
   const handleTimeout = useCallback((result: GameResult) => {
     void concludeGame(result, 'on time');
@@ -534,6 +550,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
             boardWidth={BOARD_WIDTH}
             isDraggablePiece={({ piece }) => !isLocked && piece.startsWith(playerPiecePrefix)}
             areArrowsAllowed={false}
+            autoPromoteToQueen={settings.autoQueenPromotion}
             customSquareStyles={customSquareStyles}
             customDarkSquareStyle={{ backgroundColor: boardTheme.dark }}
             customLightSquareStyle={{ backgroundColor: boardTheme.light }}
@@ -558,10 +575,10 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
               result={gameOverPending.result}
               reason={gameOverPending.reason}
               onRematch={handleRematch}
-              onChangeOpponent={onChangeOpponent ?? (() => {})}
-              onGoHome={onGoHome ?? (() => {})}
-              onViewReport={onViewReport}
-              onViewReplay={() => router.push('/profile')}
+              onChangeOpponent={handleChangeOpponentClick}
+              onGoHome={handleGoHomeClick}
+              onViewReport={onViewReport ? handleViewReportClick : undefined}
+              onViewReplay={handleViewReplayClick}
             />
           )}
         </div>

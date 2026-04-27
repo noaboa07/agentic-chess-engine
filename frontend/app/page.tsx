@@ -73,24 +73,23 @@ const FEATURES = [
   },
   {
     title: 'Campaign Progression',
-    body: 'Thirteen bosses, five named tiers, linear unlock logic. Win to advance. Each boss fight opens with a pre-fight briefing — lesson focus, tactical warning, and a taunt. Campaign games auto-enable Teach Mode so the coach is always active as you climb.',
-    spec: '13 BOSSES · 5 TIERS · TEACH MODE AUTO-ENABLED · SUPABASE RLS',
+    body: 'Fifteen generals across four Descents, linear unlock logic. Win to advance. Each boss fight opens with a pre-fight briefing — lesson focus, tactical warning, and an in-character taunt. Use Free Play with Teach Mode to prepare — then bring what you learned into the Campaign.',
+    spec: '15 GENERALS · 4 DESCENTS · LINEAR UNLOCK · SUPABASE RLS',
     visual: (
       <div className="font-mono text-[11px] space-y-0">
         {[
-          'Beginner Chaos',
-          'Fundamentals',
-          'Tactical Arena',
-          'Positional Masters',
-          'Final Bosses',
-        ].map((tier, i) => (
-          <div key={tier} className="flex items-center gap-3">
+          'The Outer Hells',
+          'The Middle Hells',
+          'The Deep Hells',
+          'The Abyss',
+        ].map((descent, i) => (
+          <div key={descent} className="flex items-center gap-3">
             <div className="flex flex-col items-center">
-              <div className={`h-2 w-2 rounded-full ${i < 3 ? 'bg-gold' : 'bg-board-border'}`} />
-              {i < 4 && <div className={`w-px h-6 ${i < 2 ? 'bg-gold/40' : 'bg-board-border'}`} />}
+              <div className={`h-2 w-2 rounded-full ${i < 2 ? 'bg-gold' : 'bg-board-border'}`} />
+              {i < 3 && <div className={`w-px h-6 ${i < 1 ? 'bg-gold/40' : 'bg-board-border'}`} />}
             </div>
-            <span className={i < 3 ? 'text-gold' : 'text-ink-tertiary'}>
-              {tier}
+            <span className={i < 2 ? 'text-gold' : 'text-ink-tertiary'}>
+              {descent}
             </span>
           </div>
         ))}
@@ -99,62 +98,78 @@ const FEATURES = [
   },
 ] as const;
 
-// ── Architecture ASCII ────────────────────────────────────────────────────────
+// ── Quick Access links ────────────────────────────────────────────────────────
 
-const ARCH_LINES = [
-  '┌─────────────────────────────────────────────────────────────────────┐',
-  '│                             Browser                                  │',
-  '│  Next.js 14 App Router                                               │',
-  '│  ┌──────────┐ ┌───────────┐ ┌──────────┐ ┌──────────┐ ┌──────────┐ │',
-  '│  │  Lobby   │ │ChessBoard │ │CoachPanel│ │Dashboard │ │Campaign  │ │',
-  '│  └──────────┘ └───────────┘ └──────────┘ └──────────┘ └──────────┘ │',
-  '│     GameContext · AchievementContext · AuthContext                    │',
-  '└──────────────────────────┬──────────────────────────────────────────┘',
-  '                           │ HTTP REST (rate-limited · slowapi)',
-  '┌──────────────────────────▼──────────────────────────────────────────┐',
-  '│                     FastAPI (Python 3.11)                            │',
-  '│  ┌────────────┐  ┌─────────────┐  ┌──────────┐  ┌──────────────┐  │',
-  '│  │ Stockfish  │  │  coach.py   │  │debate.py │  │  cache.py    │  │',
-  '│  │  depth=15  │  │  (Groq LLM) │  │(3-agent) │  │  (LRU 512)  │  │',
-  '│  └────────────┘  └─────────────┘  └──────────┘  └──────────────┘  │',
-  '└──────────────────────────┬──────────────────────────────────────────┘',
-  '                           │',
-  '              ┌────────────▼────────────┐',
-  '              │         Supabase         │',
-  '              │  users · games · puzzles │',
-  '              │  campaign_progress       │',
-  '              │  user_achievements       │',
-  '              │  RLS on all tables       │',
-  '              └──────────────────────────┘',
+const QUICK_LINKS = [
+  {
+    href: '/campaign',
+    title: 'Campaign',
+    description: 'Descend through the 64 Hells and defeat 15 Generals.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M6 9H4.5a2.5 2.5 0 0 1 0-5H6"/><path d="M18 9h1.5a2.5 2.5 0 0 0 0-5H18"/>
+        <path d="M4 22h16"/>
+        <path d="M10 14.66V17c0 .55-.47.98-.97 1.21C7.85 18.75 7 20.24 7 22"/>
+        <path d="M14 14.66V17c0 .55.47.98.97 1.21C16.15 18.75 17 20.24 17 22"/>
+        <path d="M18 2H6v7a6 6 0 0 0 12 0V2Z"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/play',
+    title: 'Free Play',
+    description: 'Pick any persona and play at your own pace.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="5 3 19 12 5 21 5 3"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/dashboard',
+    title: 'Dashboard',
+    description: 'Track your Elo history, CPL trends, and win rate.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <line x1="18" y1="20" x2="18" y2="10"/><line x1="12" y1="20" x2="12" y2="4"/>
+        <line x1="6" y1="20" x2="6" y2="14"/><line x1="2" y1="20" x2="22" y2="20"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/puzzles',
+    title: 'Puzzles',
+    description: 'Train on blunders pulled from your own games.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="3" y="3" width="7" height="7" rx="1"/><rect x="14" y="3" width="7" height="7" rx="1"/>
+        <rect x="14" y="14" width="7" height="7" rx="1"/><rect x="3" y="14" width="7" height="7" rx="1"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/shop',
+    title: 'Shop',
+    description: 'Unlock board themes as your Elo grows.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/>
+        <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/>
+      </svg>
+    ),
+  },
+  {
+    href: '/profile',
+    title: 'Profile',
+    description: 'Your stats, achievements, and full game history.',
+    icon: (
+      <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 0 0-4-4H8a4 4 0 0 0-4 4v2"/><circle cx="12" cy="7" r="4"/>
+      </svg>
+    ),
+  },
 ];
 
-const GOLD_WORDS = ['Stockfish', 'Groq', 'Supabase', 'FastAPI', 'Next.js'];
-
-function highlightArch(line: string): React.ReactNode {
-  let remaining = line;
-  const parts: React.ReactNode[] = [];
-  let key = 0;
-
-  while (remaining.length > 0) {
-    let earliest = -1;
-    let matchedWord = '';
-    for (const word of GOLD_WORDS) {
-      const idx = remaining.indexOf(word);
-      if (idx !== -1 && (earliest === -1 || idx < earliest)) {
-        earliest = idx;
-        matchedWord = word;
-      }
-    }
-    if (earliest === -1) {
-      parts.push(<span key={key++}>{remaining}</span>);
-      break;
-    }
-    if (earliest > 0) parts.push(<span key={key++}>{remaining.slice(0, earliest)}</span>);
-    parts.push(<span key={key++} className="text-gold">{matchedWord}</span>);
-    remaining = remaining.slice(earliest + matchedWord.length);
-  }
-  return <>{parts}</>;
-}
 
 // ── Page ──────────────────────────────────────────────────────────────────────
 
@@ -175,11 +190,11 @@ export default function LandingPage() {
               v1.0 · Built with Stockfish 16
             </p>
             <h1 className="font-serif text-[62px] sm:text-[72px] leading-[1.04] font-medium text-ink-primary">
-              Thirteen opponents.<br />
-              <em>One engine.</em>
+              Fifteen generals.<br />
+              <em>One descent.</em>
             </h1>
             <p className="text-[16px] text-ink-secondary max-w-[520px] leading-relaxed mt-6">
-              An AI chess platform where every opponent is a fully autonomous agent — calibrated Elo, distinct personality, real-time coaching. From a 150-rated Roomba to a 2700-rated god.
+              An AI chess platform where every opponent is a fully autonomous agent — calibrated Elo, distinct personality, real-time coaching. Descend through the Hells of Caïssa, from Pawnstorm Petey to Dread Hades.
             </p>
             <div className="flex items-center gap-3 mt-8 flex-wrap">
               <Link
@@ -212,13 +227,42 @@ export default function LandingPage() {
           </div>
         </section>
 
+        {/* ── Quick Access ──────────────────────────────────────────────── */}
+        <section className="py-16 border-t border-board-border">
+          <p className="font-mono text-[10px] text-ink-tertiary uppercase tracking-widest mb-2">
+            Explore
+          </p>
+          <h2 className="font-serif text-2xl font-medium text-ink-primary mb-8">
+            Everything in one place.
+          </h2>
+          <div className="grid grid-cols-2 lg:grid-cols-3 gap-4">
+            {QUICK_LINKS.map(link => (
+              <Link
+                key={link.href}
+                href={link.href}
+                className="group flex flex-col gap-3 p-5 rounded-xl border border-board-border bg-board-surface hover:bg-board-surface-elevated hover:border-gold/40 transition-all duration-200"
+              >
+                <div className="text-gold">{link.icon}</div>
+                <div>
+                  <p className="text-sm font-semibold text-ink-primary group-hover:text-gold transition-colors leading-snug">
+                    {link.title}
+                  </p>
+                  <p className="text-[13px] text-ink-tertiary mt-1 leading-snug">
+                    {link.description}
+                  </p>
+                </div>
+              </Link>
+            ))}
+          </div>
+        </section>
+
         {/* ── Persona Ladder ────────────────────────────────────────────── */}
         <section className="py-16 border-t border-board-border">
           <p className="font-mono text-[10px] text-ink-tertiary uppercase tracking-widest">
             The Ladder
           </p>
           <h2 className="font-serif text-2xl font-medium text-ink-primary mt-1 mb-8">
-            From chaos to god, in thirteen steps.
+            From chaos to the Abyss, in fifteen steps.
           </h2>
           <PersonaLadder />
         </section>
@@ -254,42 +298,11 @@ export default function LandingPage() {
         {/* ── Architecture ──────────────────────────────────────────────── */}
       </main>
 
-      <section className="bg-board-surface border-y border-board-border py-16 mt-8">
-        <div className="mx-auto max-w-6xl px-6 lg:px-10">
-          <p className="font-mono text-[10px] text-ink-tertiary uppercase tracking-widest mb-6">
-            Architecture
-          </p>
-          <pre className="font-mono text-[11px] text-ink-secondary leading-relaxed overflow-x-auto">
-            {ARCH_LINES.map((line, i) => (
-              <div key={i}>{highlightArch(line)}</div>
-            ))}
-          </pre>
-
-          {/* Stats */}
-          <div className="grid grid-cols-2 sm:grid-cols-4 gap-6 mt-10 pt-8 border-t border-board-border">
-            {[
-              { n: '13',    label: 'Personas' },
-              { n: '15',    label: 'Achievements' },
-              { n: '10',    label: 'Board Themes' },
-              { n: '520ms', label: 'p95 Latency' },
-            ].map(s => (
-              <div key={s.label}>
-                <p className="font-mono text-2xl font-semibold text-gold">{s.n}</p>
-                <p className="font-mono text-[10px] text-ink-tertiary uppercase tracking-widest mt-0.5">{s.label}</p>
-              </div>
-            ))}
-          </div>
-
-          <p className="font-mono text-[10px] text-ink-tertiary uppercase tracking-widest mt-6">
-            Row Level Security · Rate Limited · Guest Mode · Demo Route · TypeScript + Python
-          </p>
-        </div>
-      </section>
 
       {/* ── Final CTA ─────────────────────────────────────────────────────── */}
       <section className="py-24 flex flex-col items-center gap-6">
         <h2 className="font-serif text-3xl font-medium text-ink-primary text-center">
-          Ready to lose to a Roomba?
+          Ready to descend into the 64 Hells?
         </h2>
         <Link
           href="/campaign"

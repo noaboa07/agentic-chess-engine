@@ -10,7 +10,7 @@ interface Props {
 }
 
 export default function LobbyScreen({ onStartGame, onBack }: Props) {
-  const [selectedPersona, setSelectedPersona] = useState<PersonaId>('clown_noah');
+  const [selectedPersona, setSelectedPersona] = useState<PersonaId>('pawnstorm_petey');
   const [selectedTC, setSelectedTC] = useState<TimeControl | null>(() => {
     const { defaultTimeControlId } = getSettings();
     return TIME_CONTROLS.find(tc => tc.label.toLowerCase() === defaultTimeControlId) ?? null;
@@ -24,11 +24,9 @@ export default function LobbyScreen({ onStartGame, onBack }: Props) {
         {onBack && (
           <button
             onClick={onBack}
-            className="flex items-center gap-1.5 rounded-lg border border-white/20 bg-white/10 px-3 py-1.5 text-xs font-medium text-white hover:bg-white/20 transition-colors"
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150"
           >
-            <svg xmlns="http://www.w3.org/2000/svg" className="h-3.5 w-3.5" viewBox="0 0 24 24" fill="currentColor">
-              <path d="M10 20v-6h4v6h5v-8h3L12 3 2 12h3v8z"/>
-            </svg>
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
             Home
           </button>
         )}

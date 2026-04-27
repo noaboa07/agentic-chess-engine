@@ -38,19 +38,23 @@ interface ApiMoveResponse {
 }
 
 export type PersonaId =
-  | 'roomba_noah'
-  | 'clown_noah'
-  | 'tilted_noah'
-  | 'sleep_deprived_noah'
-  | 'gym_bro_noah'
-  | 'coffee_shop_noah'
-  | 'tech_bro_noah'
-  | 'rat_main_noah'
-  | 'grandmaster_twitch_noah'
-  | 'gpa_noah'
-  | 'devil_noah'
-  | 'angel_noah'
-  | 'god_noah';
+  | 'pawnstorm_petey'
+  | 'grizelda_the_greedy'
+  | 'brother_oedric'
+  | 'sir_vance_the_vain'
+  | 'lady_cassandra_bloodwine'
+  | 'the_hippomancer'
+  | 'magister_tobias_the_pedant'
+  | 'wrathful_vex'
+  | 'the_mirror_maiden'
+  | 'lady_vipra_the_coiled'
+  | 'boros_the_time_devourer'
+  | 'the_reaper_of_pawns'
+  | 'oracle_nyx_the_paranoid'
+  | 'the_fallen_champion'
+  | 'dread_hades';
+
+export type DescentNumber = 1 | 2 | 3 | 4;
 
 export interface DebateEntry {
   agent: string;
@@ -67,25 +71,143 @@ export interface AdaptiveSuggestion {
 export interface PersonaMeta {
   id: PersonaId;
   name: string;
-  description: string;
+  quote: string;        // pre-game taunt
+  victoryQuote: string;
+  defeatQuote: string;
+  description: string;  // teaching goal
   elo: number;
-  skillLevel: number;
+  skillLevel: number;   // 0–20 for progress bar
+  descent: DescentNumber;
+  descentName: string;
+  sin: string;
+  unlockRequires: PersonaId | null;
+  adaptive?: true;      // TODO: requires player_history module
 }
 
 export const PERSONAS: PersonaMeta[] = [
-  { id: 'roomba_noah',              name: 'Roomba Noah',             description: 'Bumbles blindly around the board',          elo: 150,  skillLevel: 0  },
-  { id: 'clown_noah',               name: 'Clown Noah',              description: 'Absolute chaos agent',                      elo: 300,  skillLevel: 0  },
-  { id: 'tilted_noah',              name: 'Tilted Noah',             description: '15-game losing streak, emotionally broken', elo: 500,  skillLevel: 1  },
-  { id: 'sleep_deprived_noah',      name: 'Sleep-Deprived Noah',     description: 'Grad student, 40hrs no sleep',              elo: 700,  skillLevel: 2  },
-  { id: 'gym_bro_noah',             name: 'Gym Bro Noah',            description: 'Chess is a physical sport, obviously',      elo: 900,  skillLevel: 3  },
-  { id: 'coffee_shop_noah',         name: 'Coffee Shop Noah',        description: 'Iced latte, AirPods in, vaguely present',   elo: 1100, skillLevel: 5  },
-  { id: 'tech_bro_noah',            name: 'Tech Bro Noah',           description: '$1k board, Python script, Scholar\'s Mate', elo: 1300, skillLevel: 7  },
-  { id: 'rat_main_noah',            name: 'Rat Main Noah',           description: 'Toxic streamer, blames lag',                elo: 1500, skillLevel: 9  },
-  { id: 'grandmaster_twitch_noah',  name: 'Grandmaster Twitch Noah', description: '300 APM, bullet brain in classical',        elo: 1700, skillLevel: 11 },
-  { id: 'gpa_noah',                 name: '4.0 GPA Noah',            description: 'Academic, zero intuition',                  elo: 1900, skillLevel: 13 },
-  { id: 'devil_noah',               name: 'Devil Noah',              description: 'Ruthless gatekeeper, wants you to quit',    elo: 2100, skillLevel: 15 },
-  { id: 'angel_noah',               name: 'Angel Noah',              description: 'Condescending saint, toxically positive',   elo: 2300, skillLevel: 17 },
-  { id: 'god_noah',                 name: 'God Noah',                description: 'Omniscient AI Architect, solves chess',     elo: 2700, skillLevel: 20 },
+  // ── First Descent: The Outer Hells ───────────────────────────────────────
+  { id: 'pawnstorm_petey',         descent: 1, descentName: 'The Outer Hells',    elo: 200,  skillLevel: 1,
+    sin: 'Recklessness', unlockRequires: null,
+    name: 'Pawnstorm Petey',
+    quote:        'I push. That is the whole plan.',
+    victoryQuote: 'I won? I WON! WAIT TIL MOMMA HEARS!',
+    defeatQuote:  'Aw. Wanna play again?',
+    description:  'Punish overextension, develop pieces, basic capture tactics' },
+
+  { id: 'grizelda_the_greedy',     descent: 1, descentName: 'The Outer Hells',    elo: 400,  skillLevel: 3,
+    sin: 'Greed', unlockRequires: 'pawnstorm_petey',
+    name: 'Grizelda the Greedy',
+    quote:        "Take. Take. Take. Why won't you take, ducky?",
+    victoryQuote: 'Ohohoho! All your pieces are MINE now, lovey. Mine, mine, mine!',
+    defeatQuote:  'You drive a hard bargain... a HARD bargain...',
+    description:  'When not to trade, piece activity over material count' },
+
+  { id: 'brother_oedric',          descent: 1, descentName: 'The Outer Hells',    elo: 600,  skillLevel: 5,
+    sin: 'Sloth', unlockRequires: 'grizelda_the_greedy',
+    name: 'Brother Oedric the Slothful',
+    quote:        'I move my pawns to the third rank. Then I rest. Forever.',
+    victoryQuote: 'Mmm. Goodnight, child.',
+    defeatQuote:  'Wait... is it... my turn...?',
+    description:  'How to break down a fortress, prophylaxis, not blundering when bored' },
+
+  // ── Second Descent: The Middle Hells ────────────────────────────────────
+  { id: 'sir_vance_the_vain',      descent: 2, descentName: 'The Middle Hells',   elo: 800,  skillLevel: 7,
+    sin: 'Vanity', unlockRequires: 'brother_oedric',
+    name: 'Sir Vance the Vain',
+    quote:        'Wayward Queen, baby. Undefeated since the Battle of Aldermere.',
+    victoryQuote: 'Did you SEE that? Did you SEE me? Tell them. Tell EVERYONE.',
+    defeatQuote:  'No... they were supposed to remember me for that move...',
+    description:  'Refute cheap opening traps without panicking' },
+
+  { id: 'lady_cassandra_bloodwine', descent: 2, descentName: 'The Middle Hells',  elo: 1000, skillLevel: 9,
+    sin: 'Lust', unlockRequires: 'sir_vance_the_vain',
+    name: 'Lady Cassandra Bloodwine',
+    quote:        'My grandfather played this gambit at the docks. Sacrifice everything. Especially yourself.',
+    victoryQuote: "Oh darling. You played beautifully. Almost as beautifully as you'll bleed.",
+    defeatQuote:  "Mmm. I haven't lost in centuries. How... refreshing.",
+    description:  'Defending against sacrifices, converting won endgames' },
+
+  { id: 'the_hippomancer',         descent: 2, descentName: 'The Middle Hells',   elo: 1200, skillLevel: 11,
+    sin: 'Stagnation', unlockRequires: 'lady_cassandra_bloodwine',
+    name: 'The Hippomancer',
+    quote:        'I do not move. The river moves around me.',
+    victoryQuote: 'You fought the current. The current always wins.',
+    defeatQuote:  'Ah. The river has chosen. Pass, child.',
+    description:  'Breaking down advanced fortresses, advanced prophylaxis' },
+
+  { id: 'magister_tobias_the_pedant', descent: 2, descentName: 'The Middle Hells', elo: 1400, skillLevel: 13,
+    sin: 'Pride', unlockRequires: 'the_hippomancer',
+    name: 'Magister Tobias the Pedant',
+    quote:        'Actually, in the Najdorf English Attack, move 17 is...',
+    victoryQuote: "As Capablanca demonstrated in 1927, this position is theoretically lost for you. I merely... confirmed it.",
+    defeatQuote:  "That's — that's not in any book I've read. That's not — no — that CAN'T be — ",
+    description:  'Principles over memorization, navigating unfamiliar positions' },
+
+  // ── Third Descent: The Inner Hells ───────────────────────────────────────
+  { id: 'wrathful_vex',            descent: 3, descentName: 'The Inner Hells',    elo: 1500, skillLevel: 15,
+    sin: 'Wrath', unlockRequires: 'magister_tobias_the_pedant',
+    name: 'Wrathful Vex',
+    quote:        "There's always a combination. ALWAYS. SHUT UP.",
+    victoryQuote: 'BURN. BURN. BURN. WHAT? WHAT NOW? HUH?',
+    defeatQuote:  'I HATE THIS GAME I HATE YOU I HATE EVERYTHING — ',
+    description:  'Calculation, defending against threats, recognizing when there is no tactic' },
+
+  { id: 'the_mirror_maiden',       descent: 3, descentName: 'The Inner Hells',    elo: 1600, skillLevel: 16,
+    sin: 'Envy', unlockRequires: 'wrathful_vex',
+    name: 'The Mirror Maiden',
+    quote:        'I have no moves of my own. Only yours.',
+    victoryQuote: 'Now... I am you. And you are nothing.',
+    defeatQuote:  'I... I will play your moves... in another life...',
+    description:  'Self-awareness, breaking your own patterns' },
+
+  { id: 'lady_vipra_the_coiled',   descent: 3, descentName: 'The Inner Hells',    elo: 1800, skillLevel: 17,
+    sin: 'Cruelty', unlockRequires: 'the_mirror_maiden',
+    name: 'Lady Vipra, the Coiled',
+    quote:        'I will squeeze you for fifty moves and you will not know why you are losing.',
+    victoryQuote: 'Forty-seven moves. A respectable struggle, little mouse.',
+    defeatQuote:  'Sssssso. The mouse has fangs. Interesssssting.',
+    description:  'Positional understanding, recognizing slow strategic pressure' },
+
+  { id: 'boros_the_time_devourer', descent: 3, descentName: 'The Inner Hells',    elo: 2000, skillLevel: 18,
+    sin: 'Tyranny', unlockRequires: 'lady_vipra_the_coiled',
+    name: 'Boros the Time-Devourer',
+    quote:        'Time is the only piece that matters.',
+    victoryQuote: 'Sand. Out. Done.',
+    defeatQuote:  'I had... more time... than I... thought...',
+    description:  'Time management, calm under pressure, punishing speed-induced inaccuracy' },
+
+  // ── Fourth Descent: The Heralds & Throne ────────────────────────────────
+  { id: 'the_reaper_of_pawns',     descent: 4, descentName: 'The Heralds & Throne', elo: 2200, skillLevel: 19,
+    sin: 'Inevitability', unlockRequires: 'boros_the_time_devourer',
+    name: 'The Reaper of Pawns',
+    quote:        'The middlegame is a rumor. Trade queens.',
+    victoryQuote: '',
+    defeatQuote:  'I will see you again.',
+    description:  'Endgame fundamentals' },
+
+  { id: 'oracle_nyx_the_paranoid', descent: 4, descentName: 'The Heralds & Throne', elo: 2400, skillLevel: 19,
+    sin: 'Paranoia', unlockRequires: 'the_reaper_of_pawns',
+    name: 'Oracle Nyx the Paranoid',
+    quote:        'I saw that move three of yours ago. I have already prevented it.',
+    victoryQuote: 'It ended as I foresaw. As all things do.',
+    defeatQuote:  'I... did not see this. I did not see... this...',
+    description:  'Planning, candidate moves, playing with a plan instead of reacting' },
+
+  { id: 'the_fallen_champion',     descent: 4, descentName: 'The Heralds & Throne', elo: 2600, skillLevel: 20,
+    sin: 'Despair', unlockRequires: 'oracle_nyx_the_paranoid',
+    name: 'The Fallen Champion',
+    quote:        'I played a thousand games before I forgot why.',
+    victoryQuote: 'You will join me here. I have seen it.',
+    defeatQuote:  'Then... you might actually... finish what I started...',
+    description:  'Self-awareness about your own weaknesses', adaptive: true },
+
+  { id: 'dread_hades',             descent: 4, descentName: 'The Heralds & Throne', elo: 2700, skillLevel: 20,
+    sin: 'All', unlockRequires: 'the_fallen_champion',
+    name: 'Dread Hades, the Chess Devil',
+    quote:        'You played a good game. I played a different one.',
+    victoryQuote: 'She gave you the game as a cage. I have made it true. And now you, too, will play forever.',
+    defeatQuote:  'Then... she chose well. Caïssa... forgive me...',
+    description:  "There's no one trick left — you must be a complete player", adaptive: true },
 ];
 
 export type IntensityLevel = 'calm' | 'dramatic' | 'hype';
@@ -255,7 +377,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
   const [state, setState] = useState<GameState>({
     ...FRESH_GAME_STATE,
-    persona: 'clown_noah',
+    persona: 'pawnstorm_petey',
     teachMode: false,
     globalMuted: false,
     boardResetToken: 0,
@@ -453,6 +575,23 @@ export function GameProvider({ children }: { children: ReactNode }) {
   const stateRef = useRef(state);
   stateRef.current = state;
 
+  // Fire achievements the moment the game ends — no button click required.
+  useEffect(() => {
+    if (!user || !state.gameOverPending || state.gameOverPending.result !== 'win') return;
+    if (state.moveLog.length === 0) return;
+    const log = state.moveLog;
+    const award = (id: string, meta?: Record<string, unknown>) =>
+      awardAchievementRef.current(user.id, id, meta).catch(() => {});
+    void award('first_blood');
+    const hasBlunder = log.some(m => m.classification === 'blunder');
+    if (!hasBlunder) { void award('no_mercy'); void award('blunder_breaker'); }
+    if (log.some(m => m.classification === 'blunder' || m.classification === 'mistake'))
+      void award('survivor');
+    if (log.length > 40) void award('endgame_cleaner');
+    if (log.some(m => m.evaluation !== null && m.evaluation <= -300))
+      void award('comeback_king');
+  }, [state.gameOverPending, user]); // eslint-disable-line react-hooks/exhaustive-deps
+
   const concludeGame = useCallback(async (result: GameResult, reason = 'game over'): Promise<void> => {
     setState(prev => ({ ...prev, gameOverPending: { result, reason } }));
   }, []);
@@ -494,7 +633,14 @@ export function GameProvider({ children }: { children: ReactNode }) {
           ]);
         }
         const puzzles = moveLog
-          .filter(m => (m.classification === 'blunder' || m.classification === 'mistake') && m.bestMove)
+          .filter(m => {
+            if (!(m.classification === 'blunder' || m.classification === 'mistake') || !m.bestMove) return false;
+            const side = m.fen.split(' ')[1];
+            const cpAfter = m.evaluation ?? 0;
+            const cpBefore = side === 'w' ? cpAfter + m.cpl : cpAfter - m.cpl;
+            const cpBeforeMover = side === 'w' ? cpBefore : -cpBefore;
+            return cpBeforeMover > -400;
+          })
           .map(m => ({
             fen: m.fen,
             correct_move: m.bestMove!,
@@ -502,30 +648,10 @@ export function GameProvider({ children }: { children: ReactNode }) {
             move_number: parseInt(m.fen.split(' ')[5] ?? '1', 10),
           }));
         if (puzzles.length > 0) savePuzzles(user.id, gameId, puzzles).catch(() => {});
-
-        // ── Achievement checks ──────────────────────────────────────────────
-        const award = (id: string, meta?: Record<string, unknown>) =>
-          awardAchievementRef.current(user.id, id, meta).catch(() => {});
-
-        if (gameOverPending.result === 'win') {
-          void award('first_blood');
-          const hasBlunder = moveLog.some(m => m.classification === 'blunder');
-          if (!hasBlunder) {
-            void award('no_mercy');
-            void award('blunder_breaker');
-          }
-          const hasMistakeOrBlunder = moveLog.some(
-            m => m.classification === 'blunder' || m.classification === 'mistake',
-          );
-          if (hasMistakeOrBlunder) void award('survivor');
-          if (moveLog.length > 40) void award('endgame_cleaner');
-          const wasDown = moveLog.some(m => m.evaluation !== null && m.evaluation <= -300);
-          if (wasDown) void award('comeback_king');
-        }
-        // ───────────────────────────────────────────────────────────────────
       } catch (err) {
         console.error('Failed to save game:', err);
       }
+
     }
 
     setState(prev => ({

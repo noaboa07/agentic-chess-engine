@@ -47,11 +47,11 @@ export default function OpeningExplorerModal({ entry, onClose }: OpeningExplorer
         {/* Plans */}
         <div className="space-y-3">
           <div>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wide mb-1">White's Plan</p>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wide mb-1">White&apos;s Plan</p>
             <p className="text-xs text-zinc-300 leading-relaxed">{entry.whitePlan}</p>
           </div>
           <div>
-            <p className="text-[10px] text-zinc-500 uppercase tracking-wide mb-1">Black's Plan</p>
+            <p className="text-[10px] text-zinc-500 uppercase tracking-wide mb-1">Black&apos;s Plan</p>
             <p className="text-xs text-zinc-300 leading-relaxed">{entry.blackPlan}</p>
           </div>
           <div className="rounded-lg bg-amber-900/30 border border-amber-700/30 px-3 py-2">

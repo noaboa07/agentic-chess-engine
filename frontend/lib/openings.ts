@@ -15,6 +15,16 @@ export function detectOpening(fen: string): string | null {
 export function detectOpeningFull(fen: string): string | null {
   const epd = fenToEpd(fen);
   const entry = eco[epd];
-  if (!entry) return null;
-  return entry.code ? `${entry.code} · ${entry.name}` : entry.name;
+  if (entry) return entry.code ? `${entry.code} · ${entry.name}` : entry.name;
+
+  // Fallback: python-chess sets en passant square after every double pawn push
+  // even when no capture is possible. ECO databases often store '-' instead.
+  const parts = epd.split(' ');
+  if (parts[3] !== '-') {
+    parts[3] = '-';
+    const normalized = eco[parts.join(' ')];
+    if (normalized) return normalized.code ? `${normalized.code} · ${normalized.name}` : normalized.name;
+  }
+
+  return null;
 }

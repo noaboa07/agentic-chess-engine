@@ -92,8 +92,9 @@ export default function ShopPage() {
     <main className="min-h-full bg-zinc-950 text-white">
       <div className="mx-auto max-w-4xl px-6 py-10">
         <div className="mb-2 flex items-center gap-4">
-          <Link href="/" className="text-sm text-zinc-400 hover:text-white transition-colors">
-            ← Back
+          <Link href="/" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back
           </Link>
           <h1 className="text-2xl font-bold">Shop</h1>
         </div>

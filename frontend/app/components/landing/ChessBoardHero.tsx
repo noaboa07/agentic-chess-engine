@@ -7,7 +7,7 @@ const LINES = [
   },
   {
     fn:    'coach.generate()',
-    args:  'persona="devil_noah"',
+    args:  'persona="oracle_nyx_the_paranoid"',
     arrow: '→',
     value: '"You walked right into that."',
   },
@@ -28,7 +28,7 @@ export default function ChessBoardHero() {
         <span className="h-2.5 w-2.5 rounded-full bg-chess-warn/60" />
         <span className="h-2.5 w-2.5 rounded-full bg-chess-win/60" />
         <span className="ml-3 text-[10px] text-ink-tertiary uppercase tracking-widest">
-          noahverse · engine output
+          caissa · engine output
         </span>
       </div>
 

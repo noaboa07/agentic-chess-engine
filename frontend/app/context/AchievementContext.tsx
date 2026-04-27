@@ -1,6 +1,7 @@
 'use client';
 
-import { createContext, useCallback, useContext, useState } from 'react';
+import { createContext, useCallback, useContext, useEffect, useState } from 'react';
+import { createPortal } from 'react-dom';
 import { ACHIEVEMENT_MAP, type Achievement } from '../../lib/achievements';
 import { unlockAchievement } from '../../lib/db';
 import { getSettings } from '../../lib/settings';
@@ -21,6 +22,9 @@ export function useAchievements(): AchievementContextValue {
 
 export function AchievementProvider({ children }: { children: React.ReactNode }) {
   const [queue, setQueue] = useState<Achievement[]>([]);
+  const [mounted, setMounted] = useState(false);
+
+  useEffect(() => { setMounted(true); }, []);
 
   const awardAchievement = useCallback(async (
     userId: string | null,
@@ -42,18 +46,20 @@ export function AchievementProvider({ children }: { children: React.ReactNode })
     }
   }, []);
 
-  const handleDismiss = useCallback(() => {
-    setQueue(q => q.slice(1));
-  }, []);
-
   return (
     <AchievementContext.Provider value={{ awardAchievement }}>
       {children}
-      {queue[0] && (
-        <AchievementToast
-          achievement={queue[0]}
-          onDismiss={handleDismiss}
-        />
+      {mounted && queue.length > 0 && createPortal(
+        <div className="fixed bottom-6 right-6 z-[200] flex flex-col-reverse gap-3 items-end">
+          {queue.map((achievement) => (
+            <AchievementToast
+              key={achievement.id}
+              achievement={achievement}
+              onDismiss={() => setQueue(q => q.filter(a => a.id !== achievement.id))}
+            />
+          ))}
+        </div>,
+        document.body,
       )}
     </AchievementContext.Provider>
   );

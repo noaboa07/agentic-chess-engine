@@ -212,7 +212,11 @@ def generate_coach_report(
     opening_line = (
         f'Opening: {opening_name} (use this exact name for "opening_played")'
         if opening_name
-        else f"Opening moves (identify the name): {opening_sans}"
+        else (
+            f'Opening moves played: {opening_sans}\n'
+            f'Identify the opening name from these moves and use it for "opening_played". '
+            f'Use your best guess — only write "Unknown" if the moves are truly unrecognizable.'
+        )
     )
 
     prompt = (

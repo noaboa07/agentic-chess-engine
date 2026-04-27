@@ -1,7 +1,6 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { BOARD_THEMES, getStoredThemeId, storeThemeId, type BoardTheme } from '../../lib/themes';
 import { useSettings, type AppSettings } from '../../lib/settings';
 import { TIME_CONTROLS } from '../context/GameContext';
 
@@ -47,42 +46,11 @@ function Toggle({ value, onChange }: { value: boolean; onChange: (v: boolean) =>
   );
 }
 
-function ThemeSwatch({ theme, active, onClick }: { theme: BoardTheme; active: boolean; onClick: () => void }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`rounded-xl border p-2 text-left transition-all ${
-        active
-          ? 'border-indigo-500 bg-indigo-950/40 ring-1 ring-indigo-500/40'
-          : 'border-zinc-800 bg-zinc-900 hover:border-zinc-600'
-      }`}
-    >
-      <div className="mb-1.5 grid grid-cols-4 overflow-hidden rounded" style={{ gridTemplateRows: 'repeat(2, 1fr)', aspectRatio: '2/1' }}>
-        {Array.from({ length: 8 }, (_, i) => (
-          <div key={i} style={{ backgroundColor: (Math.floor(i / 4) + (i % 4)) % 2 === 0 ? theme.light : theme.dark }} />
-        ))}
-      </div>
-      <p className="text-[10px] font-semibold text-white leading-tight">{theme.name}</p>
-      {active && <p className="text-[10px] text-indigo-400 mt-0.5 font-medium">✓ Active</p>}
-    </button>
-  );
-}
-
 // ── Main component ────────────────────────────────────────────────────────────
 
 export default function GlobalSettingsButton() {
   const [open, setOpen] = useState(false);
   const { settings, update } = useSettings();
-
-  const activeThemeId = (() => {
-    if (typeof window !== 'undefined') return getStoredThemeId();
-    return 'classic';
-  })();
-
-  function selectTheme(theme: BoardTheme) {
-    storeThemeId(theme.id);
-    window.location.reload();
-  }
 
   // Close on Escape
   useEffect(() => {
@@ -123,7 +91,7 @@ export default function GlobalSettingsButton() {
           className="fixed inset-0 z-[190] flex items-center justify-center bg-black/60 backdrop-blur-sm p-4"
           onClick={e => { if (e.target === e.currentTarget) setOpen(false); }}
         >
-          <div className="relative w-full max-w-lg max-h-[85vh] flex flex-col rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl">
+          <div className="relative w-full max-w-2xl max-h-[85vh] flex flex-col rounded-2xl border border-zinc-800 bg-zinc-950 shadow-2xl">
             {/* Header */}
             <div className="flex items-center justify-between px-6 py-4 border-b border-zinc-800 shrink-0">
               <h1 className="text-base font-semibold text-white">Settings</h1>
@@ -154,19 +122,6 @@ export default function GlobalSettingsButton() {
                   <SettingRow label="Reduced motion" description="Disable glow pulses and non-essential animations.">
                     <Toggle value={settings.reducedMotion} onChange={v => update('reducedMotion', v)} />
                   </SettingRow>
-                </div>
-                <div>
-                  <p className="text-xs text-zinc-500 mb-3">Board theme</p>
-                  <div className="grid grid-cols-5 gap-2">
-                    {BOARD_THEMES.map(theme => (
-                      <ThemeSwatch
-                        key={theme.id}
-                        theme={theme}
-                        active={activeThemeId === theme.id}
-                        onClick={() => selectTheme(theme)}
-                      />
-                    ))}
-                  </div>
                 </div>
               </SectionCard>
 

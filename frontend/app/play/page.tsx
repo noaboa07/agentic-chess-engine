@@ -33,7 +33,7 @@ function PlayPageInner() {
     if (!campaignPersonaId) return;
     setPersona(campaignPersonaId);
     setTimeControl(null);
-    setTeachMode(true);
+    setTeachMode(false);
     setPhase('game');
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
@@ -51,7 +51,7 @@ function PlayPageInner() {
         next ? unlockPersona(user.id, next.id) : Promise.resolve(),
       ]);
       void awardAchievement(user.id, 'boss_slayer');
-      if (campaignPersonaId === 'god_noah') void awardAchievement(user.id, 'god_slayer');
+      if (campaignPersonaId === 'dread_hades') void awardAchievement(user.id, 'god_slayer');
       try {
         const progress = await getCampaignProgress(user.id);
         const completed = Object.values(progress).filter(s => s === 'complete').length;

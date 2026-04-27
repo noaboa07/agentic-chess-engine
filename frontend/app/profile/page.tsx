@@ -74,7 +74,10 @@ export default function ProfilePage() {
     return (
       <main className="h-full overflow-y-auto bg-zinc-950 text-white flex flex-col items-center justify-center gap-4">
         <p className="text-zinc-400">Could not load profile.</p>
-        <Link href="/" className="text-indigo-400 hover:underline text-sm">← Back to Home</Link>
+        <Link href="/" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          Home
+        </Link>
       </main>
     );
   }
@@ -88,7 +91,10 @@ export default function ProfilePage() {
       <div className="mx-auto max-w-2xl px-6 py-10">
         {/* Header */}
         <div className="mb-8 flex items-center gap-4">
-          <Link href="/" className="text-sm text-zinc-400 hover:text-white transition-colors">← Back</Link>
+          <Link href="/" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back
+          </Link>
           <h1 className="text-2xl font-bold">Profile</h1>
         </div>
 

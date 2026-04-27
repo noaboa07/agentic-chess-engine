@@ -12,13 +12,13 @@ interface Step {
 
 const STEPS: Step[] = [
   {
-    title: 'Welcome to The Noah Verse',
-    body: 'Face 13 AI personas — from a confused Roomba to an all-knowing God. Each has a unique style and Elo rating.',
+    title: 'Welcome to Caïssa',
+    body: 'Face 15 AI generals — from the reckless Pawnstorm Petey to Dread Hades, Lord of the 64 Hells. Each has a unique style and Elo rating.',
     position: 'center',
   },
   {
     title: 'Choose Your Opponent',
-    body: 'Pick any available persona from the lobby. Start with Roomba Noah if you\'re new — it barely knows the rules.',
+    body: 'Pick any available general from the lobby. Start with Pawnstorm Petey if you\'re new — all he does is push pawns.',
     position: 'center',
   },
   {

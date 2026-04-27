@@ -18,19 +18,21 @@ interface BossFightModalProps {
 }
 
 const BOSS_TAUNT: Record<PersonaId, string> = {
-  roomba_noah:             "I bump into pieces randomly. You'll still find a way to lose.",
-  clown_noah:              "Chaos is my strategy. Good luck preparing for nothing.",
-  tilted_noah:             "I attack on move one. Your king is already nervous.",
-  sleep_deprived_noah:     "I'm running on three hours of sleep. Still better than you.",
-  gym_bro_noah:            "Every piece I have is a weapon. Watch your back rank.",
-  coffee_shop_noah:        "I'll squeeze your position until you can't breathe.",
-  tech_bro_noah:           "I optimize. You improvise. We both know how this ends.",
-  rat_main_noah:           "Get to the endgame. I'll be waiting.",
-  grandmaster_twitch_noah: "Chat already called your blunder. I'm just here to confirm it.",
-  gpa_noah:                "I memorized your line deeper than you did.",
-  devil_noah:              "One piece sacrifice. That's all it takes.",
-  angel_noah:              "You'll exhaust yourself trying to crack me open.",
-  god_noah:                "There is no move you can make that I have not already calculated.",
+  pawnstorm_petey:             "I'm pushing. That's it. That's the plan.",
+  grizelda_the_greedy:         "Give me your pieces. Give me ALL of them.",
+  brother_oedric:              "I have... all the time... in the world...",
+  sir_vance_the_vain:          "You know what's coming. Let's see if you remembered.",
+  lady_cassandra_bloodwine:    "My family never declined a gambit. Neither will I.",
+  the_hippomancer:             "The Hippo Formation is eternal. You are not.",
+  magister_tobias_the_pedant:  "I have this memorized to move 22. I hope you're in the mainline.",
+  wrathful_vex:                "There's a combination here somewhere. There's ALWAYS a combination.",
+  the_mirror_maiden:           "You won't blunder. You'll just slowly run out of good moves.",
+  lady_vipra_the_coiled:       "I was already winning on the clock before you touched a piece.",
+  boros_the_time_devourer:     "Trade everything. We'll settle this where you're weakest.",
+  the_reaper_of_pawns:         "A pawn is never just a pawn. Give me one and I will take your soul.",
+  oracle_nyx_the_paranoid:     "Whatever you're planning, I've already closed the door.",
+  the_fallen_champion:         "I was the greatest once. I remember how this ends.",
+  dread_hades:                 "I have watched every soul that fell before you. I know exactly where you break.",
 };
 
 export default function BossFightModal({ personaId, info, onClose }: BossFightModalProps) {
@@ -51,7 +53,7 @@ export default function BossFightModal({ personaId, info, onClose }: BossFightMo
           <p className="text-[10px] text-indigo-400 uppercase tracking-widest mb-1">Boss Fight</p>
           <h2 className="text-xl font-bold text-white">{info.name}</h2>
           <p className="text-xs text-zinc-500 mt-0.5">{info.elo} Elo</p>
-          <p className="text-sm italic text-zinc-400 mt-2">"{BOSS_TAUNT[personaId]}"</p>
+          <p className="text-sm italic text-zinc-400 mt-2">&quot;{BOSS_TAUNT[personaId]}&quot;</p>
         </div>
 
         {/* Details */}

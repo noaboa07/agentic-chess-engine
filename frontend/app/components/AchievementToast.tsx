@@ -65,7 +65,7 @@ export default function AchievementToast({ achievement, onDismiss }: Achievement
 
   return (
     <div
-      className={`fixed bottom-6 right-6 z-[200] w-80 rounded-xl border shadow-2xl backdrop-blur-md ${TIER_BORDER[achievement.tier]} bg-zinc-900/90 ${
+      className={`w-80 rounded-xl border shadow-2xl backdrop-blur-md ${TIER_BORDER[achievement.tier]} bg-zinc-900/90 ${
         exiting
           ? 'animate-[slideDownFadeOut_0.28s_ease-in_forwards]'
           : 'animate-[slideUpFadeIn_0.3s_ease-out]'

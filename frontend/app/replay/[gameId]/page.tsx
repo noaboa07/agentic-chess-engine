@@ -92,7 +92,10 @@ export default function ReplayPage() {
     return (
       <main className="h-full overflow-y-auto bg-zinc-950 text-white flex flex-col items-center justify-center gap-4">
         <p className="text-zinc-400">Game not found.</p>
-        <Link href="/profile" className="text-indigo-400 hover:underline text-sm">← Back to Profile</Link>
+        <Link href="/profile" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150">
+          <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+          Profile
+        </Link>
       </main>
     );
   }
@@ -105,7 +108,10 @@ export default function ReplayPage() {
       <div className="mx-auto max-w-5xl px-6 py-8">
         {/* Header */}
         <div className="flex items-center gap-4 mb-6 flex-wrap">
-          <Link href="/profile" className="text-sm text-zinc-400 hover:text-white transition-colors">← Profile</Link>
+          <Link href="/profile" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Profile
+          </Link>
           <h1 className="text-xl font-bold">vs {formatPersonaName(game.opponent_id)}</h1>
           <span className={`text-sm font-semibold capitalize px-2 py-0.5 rounded ${
             game.result === 'win'  ? 'bg-emerald-900/50 text-emerald-400' :
@@ -124,7 +130,7 @@ export default function ReplayPage() {
               <EvalBar evaluation={currentMove?.evaluation ?? null} />
               <Chessboard
                 position={boardFen}
-                boardWidth={460}
+                boardWidth={540}
                 arePiecesDraggable={false}
                 customBoardStyle={{ borderRadius: '4px' }}
               />

@@ -9,7 +9,9 @@ import type { MoveClassification } from '../context/GameContext';
 
 // ── Simple SVG line chart ────────────────────────────────────────────────────
 
-function LineChart({ values, color }: { values: number[]; color: string }) {
+function LineChart({ values, color, label = 'Value' }: { values: number[]; color: string; label?: string }) {
+  const [hovered, setHovered] = useState<number | null>(null);
+
   if (values.length < 2) {
     return <p className="text-xs text-zinc-600 italic">Not enough data yet</p>;
   }
@@ -21,12 +23,41 @@ function LineChart({ values, color }: { values: number[]; color: string }) {
   const toX = (i: number) => (i / (values.length - 1)) * W;
   const toY = (v: number) => H - ((v - min) / range) * (H - 12) - 6;
   const points = values.map((v, i) => `${toX(i)},${toY(v)}`).join(' ');
+
+  const TW = 90;
+  const TH = 32;
+
   return (
-    <svg width={W} height={H} className="overflow-visible">
+    <svg width={W} height={H} className="overflow-visible" onMouseLeave={() => setHovered(null)}>
       <polyline points={points} fill="none" stroke={color} strokeWidth="2" strokeLinejoin="round" strokeLinecap="round" />
       {values.map((v, i) => (
-        <circle key={i} cx={toX(i)} cy={toY(v)} r="2.5" fill={color} />
+        <circle
+          key={i}
+          cx={toX(i)}
+          cy={toY(v)}
+          r={hovered === i ? 4 : 2.5}
+          fill={color}
+          style={{ cursor: 'crosshair' }}
+          onMouseEnter={() => setHovered(i)}
+        />
       ))}
+      {hovered !== null && (() => {
+        const x = toX(hovered);
+        const y = toY(values[hovered]);
+        const tx = Math.min(Math.max(x - TW / 2, -4), W - TW + 4);
+        const ty = y < TH + 12 ? y + 10 : y - TH - 10;
+        return (
+          <g style={{ pointerEvents: 'none' }}>
+            <rect x={tx} y={ty} width={TW} height={TH} rx="4" fill="#18181b" stroke="#3f3f46" strokeWidth="1" />
+            <text x={tx + TW / 2} y={ty + 11} textAnchor="middle" fontSize="9" fill="#71717a" fontFamily="ui-monospace,monospace">
+              {`Game ${hovered + 1}`}
+            </text>
+            <text x={tx + TW / 2} y={ty + 24} textAnchor="middle" fontSize="11" fill={color} fontFamily="ui-monospace,monospace" fontWeight="600">
+              {`${label}: ${values[hovered]}`}
+            </text>
+          </g>
+        );
+      })()}
     </svg>
   );
 }
@@ -177,7 +208,10 @@ export default function DashboardPage() {
     <main className="h-full overflow-y-auto bg-zinc-950 text-white">
       <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/" className="text-sm text-zinc-400 hover:text-white transition-colors">← Back</Link>
+          <Link href="/" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back
+          </Link>
           <h1 className="text-2xl font-bold">Dashboard</h1>
         </div>
 
@@ -209,7 +243,7 @@ export default function DashboardPage() {
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
               <h2 className="text-sm font-semibold text-zinc-300 mb-3">Rating History</h2>
               {stats.ratingHistory.length >= 2 ? (
-                <LineChart values={stats.ratingHistory} color="#818cf8" />
+                <LineChart values={stats.ratingHistory} color="#818cf8" label="Rating" />
               ) : (
                 <p className="text-xs text-zinc-600 italic">Play at least 2 rated games to see your rating trend.</p>
               )}
@@ -218,7 +252,7 @@ export default function DashboardPage() {
             {/* CPL trend */}
             <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-5">
               <h2 className="text-sm font-semibold text-zinc-300 mb-3">Avg CPL — Last 10 Games</h2>
-              <LineChart values={stats.cplTrend} color="#f97316" />
+              <LineChart values={stats.cplTrend} color="#f97316" label="CPL" />
               <p className="text-[11px] text-zinc-600 mt-2">Lower centipawn loss = better move quality</p>
             </div>
 

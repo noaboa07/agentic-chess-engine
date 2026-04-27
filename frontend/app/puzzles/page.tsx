@@ -14,7 +14,7 @@ const Chessboard = dynamic(
   { ssr: false },
 );
 
-type PuzzleState = 'idle' | 'correct' | 'wrong';
+type PuzzleState = 'idle' | 'correct' | 'revealed';
 
 function formatClass(cls: string) {
   return cls.charAt(0).toUpperCase() + cls.slice(1);
@@ -28,6 +28,7 @@ export default function PuzzlesPage() {
   const [index, setIndex] = useState(0);
   const [puzzleState, setPuzzleState] = useState<PuzzleState>('idle');
   const [shownMove, setShownMove] = useState<string | null>(null);
+  const [wrongAttempts, setWrongAttempts] = useState(0);
 
   useEffect(() => {
     if (!user) { setLoading(false); return; }
@@ -43,7 +44,6 @@ export default function PuzzlesPage() {
     (src: Square, tgt: Square): boolean => {
       if (!puzzle || puzzleState !== 'idle') return false;
       const attempted = `${src}${tgt}`;
-      // Accept if the first 4 chars match (ignore promotion suffix for simplicity)
       const isCorrect = puzzle.correct_move.startsWith(attempted) || attempted.startsWith(puzzle.correct_move.slice(0, 4));
       if (isCorrect) {
         setPuzzleState('correct');
@@ -56,30 +56,36 @@ export default function PuzzlesPage() {
           setPuzzles(prev => prev.map((p, i) => i === index ? { ...p, solved: true } : p));
         }
       } else {
-        setPuzzleState('wrong');
-        setShownMove(puzzle.correct_move);
+        const next = wrongAttempts + 1;
+        setWrongAttempts(next);
+        if (next >= 3) {
+          setShownMove(puzzle.correct_move);
+          setPuzzleState('revealed');
+        }
       }
       return isCorrect;
     },
-    [puzzle, puzzleState, index, user, puzzles, awardAchievement],
+    [puzzle, puzzleState, wrongAttempts, index, user, puzzles, awardAchievement],
   );
 
   const handleNext = useCallback(() => {
     setPuzzleState('idle');
     setShownMove(null);
+    setWrongAttempts(0);
     setIndex(i => Math.min(i + 1, puzzles.length - 1));
   }, [puzzles.length]);
 
   const handlePrev = useCallback(() => {
     setPuzzleState('idle');
     setShownMove(null);
+    setWrongAttempts(0);
     setIndex(i => Math.max(i - 1, 0));
   }, []);
 
   const handleReveal = useCallback(() => {
     if (!puzzle) return;
     setShownMove(puzzle.correct_move);
-    setPuzzleState('wrong');
+    setPuzzleState('revealed');
   }, [puzzle]);
 
   if (loading) {
@@ -94,7 +100,10 @@ export default function PuzzlesPage() {
     <main className="h-full overflow-y-auto bg-zinc-950 text-white">
       <div className="mx-auto max-w-3xl px-6 py-10">
         <div className="flex items-center gap-4 mb-8">
-          <Link href="/" className="text-sm text-zinc-400 hover:text-white transition-colors">← Back</Link>
+          <Link href="/" className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-lg border border-zinc-700/60 bg-zinc-800/40 hover:bg-zinc-800 text-sm text-zinc-400 hover:text-zinc-100 transition-all duration-150">
+            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M15 18l-6-6 6-6"/></svg>
+            Back
+          </Link>
           <div>
             <h1 className="text-2xl font-bold">Puzzles</h1>
             <p className="text-xs text-zinc-500 mt-0.5">Generated from your blunders and mistakes</p>
@@ -123,7 +132,7 @@ export default function PuzzlesPage() {
             <div className="flex flex-col items-center gap-3">
               <Chessboard
                 position={puzzle.fen}
-                boardWidth={400}
+                boardWidth={520}
                 onPieceDrop={handlePieceDrop}
                 arePiecesDraggable={puzzleState === 'idle'}
                 customBoardStyle={{ borderRadius: '4px' }}
@@ -135,13 +144,19 @@ export default function PuzzlesPage() {
                   Correct!
                 </div>
               )}
-              {puzzleState === 'wrong' && (
+              {puzzleState === 'idle' && wrongAttempts === 1 && (
                 <div className="w-full rounded-lg bg-red-900/50 border border-red-700/40 px-4 py-2 text-center text-sm font-semibold text-red-400">
-                  {shownMove ? (
-                    <>Best move: <span className="font-mono text-white">{shownMove}</span></>
-                  ) : (
-                    'Not quite — try again!'
-                  )}
+                  Not quite — try again!
+                </div>
+              )}
+              {puzzleState === 'idle' && wrongAttempts === 2 && (
+                <div className="w-full rounded-lg bg-red-900/50 border border-red-700/40 px-4 py-2 text-center text-sm font-semibold text-red-400">
+                  Wrong again — one more try!
+                </div>
+              )}
+              {puzzleState === 'revealed' && (
+                <div className="w-full rounded-lg bg-red-900/50 border border-red-700/40 px-4 py-2 text-center text-sm font-semibold text-red-400">
+                  Best move: <span className="font-mono text-white">{shownMove}</span>
                 </div>
               )}
             </div>
@@ -174,7 +189,7 @@ export default function PuzzlesPage() {
                   disabled={puzzleState !== 'idle'}
                   className="w-full rounded-lg bg-zinc-800 px-4 py-2 text-xs font-medium text-zinc-300 hover:bg-zinc-700 transition-colors disabled:opacity-40"
                 >
-                  Show Answer
+                  Give Up
                 </button>
                 <div className="flex gap-2">
                   <button

@@ -478,7 +478,7 @@ export async function unlockAchievement(
   achievementId: string,
   metadata?: Record<string, unknown>,
 ): Promise<boolean> {
-  const { error, count } = await supabase
+  const { data, error } = await supabase
     .from('user_achievements')
     .upsert(
       { user_id: userId, achievement_id: achievementId, metadata: metadata ?? null },
@@ -486,7 +486,9 @@ export async function unlockAchievement(
     )
     .select();
   if (error) throw error;
-  return (count ?? 0) > 0;
+  // ignoreDuplicates: true means only newly inserted rows are returned in data.
+  // count is always null on a plain .select() upsert — check data.length instead.
+  return (data ?? []).length > 0;
 }
 
 export async function getDashboardGames(userId: string, limit = 50): Promise<DashboardGame[]> {

@@ -37,9 +37,21 @@ def _score_to_cp(score: chess.engine.PovScore) -> int:
     return white.score() or 0
 
 
-def _classify(cpl: int, delta: int) -> str:
-    """Classify a move by Centipawn Loss."""
-    if cpl == 0 and delta > 50:
+def _classify(cpl: int, delta: int, cp_after_mover: int) -> str:
+    """
+    cpl:            centipawn loss vs engine's best move (0 = played best move)
+    delta:          how much the position improved for the mover after this move
+    cp_after_mover: evaluation after the move from the MOVER's perspective
+                    (positive = mover is winning, negative = mover is losing)
+
+    Brilliant requires all three:
+      - played the engine's top choice (cpl == 0)
+      - position improved significantly (delta > 50)
+      - mover is actually winning after the move (cp_after_mover > 0)
+    Without the third guard, a "best try" queen sac in a losing position can
+    fire as brilliant just because the horizon effect shows a slightly less-bad line.
+    """
+    if cpl == 0 and delta > 50 and cp_after_mover > 0:
         return "brilliant"
     if cpl == 0:
         return "great"
@@ -74,7 +86,7 @@ def _engine_reply(
         return ""
 
     if target_elo <= _PURE_RANDOM_MAX:
-        # Roomba (150), Clown (300), Tilted (500): zero engine evaluation — pure chaos.
+        # Petey (150), Sir Trades (300), Fianchetto Friar (500): zero engine evaluation — pure chaos.
         # Even depth=1 Stockfish sees Scholar's Mate threats; random moves don't.
         return random.choice(legal_moves).uci()
 
@@ -196,11 +208,17 @@ def analyze_move(
 
     delta = (cp_after - cp_before) if moving_color == chess.WHITE else -(cp_after - cp_before)
     cpl = max(0, -delta)
-    classification = _classify(cpl, delta)
+    cp_after_mover = cp_after if moving_color == chess.WHITE else -cp_after
+    classification = _classify(cpl, delta, cp_after_mover)
 
-    # Opening exemption: upgrade inaccuracies in moves 1–10
-    if classification == "inaccuracy" and len(board.move_stack) <= 10:
-        classification = "good"
+    # Opening exemption (moves 1–10): soften classifications one tier.
+    # inaccuracy → good, mistake → inaccuracy.
+    # Blunders (CPL > 200) are never softened — those are real errors at any stage.
+    if len(board.move_stack) <= 10:
+        if classification == "inaccuracy":
+            classification = "good"
+        elif classification == "mistake":
+            classification = "inaccuracy"
 
     if info_after is None:
         evaluation: dict[str, str | int] = (
