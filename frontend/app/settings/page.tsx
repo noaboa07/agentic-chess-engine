@@ -85,12 +85,6 @@ export default function SettingsPage() {
     window.location.reload();
   }
 
-  const blunderOptions: { label: string; value: AppSettings['blunderConfirmMode'] }[] = [
-    { label: 'Off',                  value: 'off' },
-    { label: 'Blunders only',        value: 'blunders' },
-    { label: 'Mistakes & Blunders',  value: 'mistakes' },
-  ];
-
   return (
     <main className="h-full overflow-y-auto text-white">
       <div className="mx-auto max-w-2xl px-6 py-10 space-y-6">
@@ -155,29 +149,6 @@ export default function SettingsPage() {
           <SettingRow label="Default Teach Mode" description="Pre-enable Teach Mode whenever you start a new game.">
             <Toggle value={settings.defaultTeachMode} onChange={v => update('defaultTeachMode', v)} />
           </SettingRow>
-
-          <div className="space-y-2">
-            <p className="text-sm font-medium text-zinc-200">Pre-move blunder warning</p>
-            <p className="text-xs text-zinc-500">Show a warning before you commit a bad move.</p>
-            <div className="flex flex-col gap-1.5">
-              {blunderOptions.map(opt => (
-                <label key={opt.value} className="flex items-center gap-3 cursor-pointer group">
-                  <span className={`h-4 w-4 rounded-full border-2 flex items-center justify-center transition-colors shrink-0 ${
-                    settings.blunderConfirmMode === opt.value
-                      ? 'border-indigo-500 bg-indigo-500'
-                      : 'border-zinc-600 group-hover:border-zinc-400'
-                  }`}>
-                    {settings.blunderConfirmMode === opt.value && (
-                      <span className="h-1.5 w-1.5 rounded-full bg-white" />
-                    )}
-                  </span>
-                  <span className="text-sm text-zinc-300" onClick={() => update('blunderConfirmMode', opt.value)}>
-                    {opt.label}
-                  </span>
-                </label>
-              ))}
-            </div>
-          </div>
         </SectionCard>
 
         {/* D — Gameplay */}

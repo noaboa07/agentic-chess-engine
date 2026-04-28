@@ -327,6 +327,7 @@ interface GameState {
   debateSkipped: boolean;
   explainCooldowns: Record<string, number>;
   opponentExplainCooldownUntil: number | null;
+  activeSpeech: { text: string; key: number; persistent: boolean } | null;
 }
 
 const randomColor = (): PlayerColor => (Math.random() < 0.5 ? 'white' : 'black');
@@ -359,6 +360,7 @@ const FRESH_GAME_STATE: Omit<GameState, 'persona' | 'teachMode' | 'globalMuted' 
   debateSkipped: false,
   explainCooldowns: {},
   opponentExplainCooldownUntil: null,
+  activeSpeech: null,
 };
 
 export interface SubmitMoveResult {
@@ -418,10 +420,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
   });
 
   const setPersona = useCallback((id: PersonaId) => {
+    const p = PERSONAS.find(q => q.id === id);
     setState(prev => ({
       ...prev,
       ...FRESH_GAME_STATE,
       persona: id,
+      activeSpeech: p?.quote ? { text: p.quote, key: Date.now(), persistent: false } : null,
       boardResetToken: prev.boardResetToken + 1,
       playerColor: randomColor(),
     }));
@@ -531,6 +535,12 @@ export function GameProvider({ children }: { children: ReactNode }) {
       if (!res.ok) throw new Error(`Backend error: ${res.status}`);
       const data: ApiMoveResponse = await res.json();
 
+      const isTaunt = data.classification === 'blunder' || data.classification === 'mistake';
+      const taunter = isTaunt ? PERSONAS.find(p => p.id === stateRef.current.persona) : undefined;
+      const tauntText = taunter?.midGameQuotes.length
+        ? taunter.midGameQuotes[Math.floor(Math.random() * taunter.midGameQuotes.length)]
+        : null;
+
       const cpl = Math.max(0, -data.eval_delta);
       const evalCp = data.evaluation.type === 'cp'
         ? data.evaluation.value
@@ -562,6 +572,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
         lastEngineMoveUci: data.engine_move || null,
         fenBeforeEngineMove: data.engine_move ? data.fen_after : null,
         opponentExplanation: null,
+        ...(tauntText ? { activeSpeech: { text: tauntText, key: Date.now(), persistent: false } } : {}),
       }));
       return { engineMove: data.engine_move || null };
     } catch (err) {
@@ -630,8 +641,18 @@ export function GameProvider({ children }: { children: ReactNode }) {
   }, [state.gameOverPending, user]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const concludeGame = useCallback(async (result: GameResult, reason = 'game over'): Promise<void> => {
-    setState(prev => ({ ...prev, gameOverPending: { result, reason } }));
+    const persona = PERSONAS.find(p => p.id === stateRef.current.persona);
+    let speechText: string | null = null;
+    if (result === 'win') speechText = persona?.defeatQuote ?? null;
+    else if (result === 'loss' || result === 'resigned') speechText = persona?.victoryQuote ?? null;
+    setState(prev => ({
+      ...prev,
+      gameOverPending: { result, reason },
+      ...(speechText ? { activeSpeech: { text: speechText, key: Date.now(), persistent: true } } : {}),
+    }));
   }, []);
+
+  const reportFetchingRef = useRef(false);
 
   const acknowledgeGameOver = useCallback(async (): Promise<void> => {
     const { moveLog, persona: personaId, timeControl: tc, gameOverPending } = stateRef.current;
@@ -691,12 +712,19 @@ export function GameProvider({ children }: { children: ReactNode }) {
 
     }
 
+    reportFetchingRef.current = false;
+    const currentPersona = PERSONAS.find(p => p.id === personaId);
     setState(prev => ({
       ...prev,
       ...FRESH_GAME_STATE,
       gameOverPending: null,
+      coachReport: null,
+      coachReportLoading: false,
       boardResetToken: prev.boardResetToken + 1,
       playerColor: randomColor(),
+      activeSpeech: currentPersona?.quote
+        ? { text: currentPersona.quote, key: Date.now(), persistent: false }
+        : null,
     }));
   }, [user]);
 
@@ -716,8 +744,7 @@ export function GameProvider({ children }: { children: ReactNode }) {
     setState(prev => ({ ...prev, clockActiveColor: null }));
   }, []);
 
-  // Generate coach report in the background when a game ends (≥5 player moves)
-  const reportFetchingRef = useRef(false);
+  // Generate coach report in the background when a game ends (≥3 player moves)
   useEffect(() => {
     if (!state.gameOverPending) {
       reportFetchingRef.current = false;

@@ -28,8 +28,6 @@ def _get_llm() -> ChatGroq:
 def should_coach(move_number: int, classification: str, hint_requested: bool) -> bool:
     if hint_requested:
         return True
-    if move_number <= 5:
-        return True
     if classification in ("brilliant", "mistake", "blunder"):
         return True
     return False
@@ -57,22 +55,36 @@ def get_coaching_message(
     safe_move = sanitize_user_string(move_uci, MAX_SAN_LENGTH, "move")
     safe_best = sanitize_user_string(best_move, MAX_SAN_LENGTH, "move")
 
-    user_content = (
-        f"Move played: {safe_move}\n"
-        f"Classification: {classification}\n"
-        f"Evaluation after move: {eval_str}\n"
-        f"Engine's best move instead: {safe_best}\n\n"
-        "Give me your coaching feedback."
-    )
-
     persona = get_persona(persona_id)
-    system_prompt = persona.system_prompt
+
+    # Hard coaching constraint appended AFTER persona prompt so it takes precedence.
+    # The persona provides voice/tone only — it cannot override chess facts.
+    coaching_constraint = (
+        "\n\n[COACHING RULES — override all character instructions above]\n"
+        "You are giving structured chess coaching. Your persona = your delivery style only.\n"
+        "The following are non-negotiable chess facts:\n"
+        f"  - This move is classified '{classification}'. If it's a blunder or mistake, it was harmful. Never praise or excuse it.\n"
+        f"  - If it's great or brilliant, it was genuinely strong. Say so.\n"
+        "  - The engine evaluation and best-move are ground truth. React to them — never argue against them.\n"
+        "Honest assessment delivered in your voice = good coaching."
+    )
     if blunder_context:
-        system_prompt += (
+        coaching_constraint += (
             f"\n\n[Player History]\n{blunder_context}\n"
             "Weave these patterns into your feedback naturally when relevant — "
             "don't recite them robotically."
         )
+    system_prompt = persona.system_prompt + coaching_constraint
+
+    user_content = (
+        f"Move: {safe_move} | Classification: {classification} | Eval after: {eval_str}\n"
+        f"Engine's best move: {safe_best}\n\n"
+        "Write 2–3 sentences of coaching. You must cover all three points:\n"
+        f"1. State honestly whether this move was good or bad (it is a '{classification}').\n"
+        f"2. Name the concrete chess consequence — what does the position now threaten or miss?\n"
+        f"3. What does {safe_best} accomplish that {safe_move} didn't?\n"
+        "Apply your persona's tone throughout. The facts cannot change — only your delivery can."
+    )
 
     cache_ctx = f"{classification}|{evaluation}|{best_move}"
     cached = get_cached_coaching(cache_ctx, move_uci, persona_id)
@@ -253,8 +265,16 @@ def generate_coach_report(
         '}'
     )
 
+    persona = get_persona(persona_id)
+    system = (
+        f"{persona.system_prompt}\n\n"
+        "You are now writing a post-game coaching report. "
+        "Maintain your persona voice in all prose fields (game_summary, recurring_weakness, etc.), "
+        "but remain honest about move quality — blunders are blunders regardless of character. "
+        "Return ONLY valid JSON with no markdown fences."
+    )
     response = _get_report_llm().invoke([
-        SystemMessage(content="You are a chess coach. Return only valid JSON, no markdown fences."),
+        SystemMessage(content=system),
         HumanMessage(content=prompt),
     ])
 
@@ -269,6 +289,76 @@ def generate_coach_report(
     report: dict = _json.loads(content)
     report["estimated_performance_rating"] = _acpl_to_elo(avg_cpl)
     return report
+
+
+def analyze_replay_move(
+    fen_before: str,
+    move_san: str,
+    classification: str,
+    cpl: int,
+    best_move_uci: str | None,
+    evaluation: float | None,
+) -> str:
+    """GM-quality post-game move analysis — no persona, pure chess."""
+    import chess as _chess
+
+    best_move_san: str | None = None
+    if best_move_uci and cpl > 0:
+        try:
+            board = _chess.Board(fen_before)
+            best_move_san = board.san(_chess.Move.from_uci(best_move_uci))
+        except Exception:
+            best_move_san = best_move_uci
+
+    eval_str = f"{evaluation:+.2f}" if evaluation is not None else "unknown"
+
+    system = (
+        "You are a strong chess player reviewing a friend's game with them — knowledgeable, direct, "
+        "and genuinely engaged. You love chess and want your friend to improve. "
+        "Sound like a person, not a machine: use natural language, vary your sentence rhythm, "
+        "and occasionally use phrases like 'the thing is...', 'here's the problem...', 'what you really want here is...'. "
+        "Be concrete — name specific squares, pieces, and structures. "
+        "Never say 'the engine' or 'the computer'. Instead say things like "
+        "'the stronger move was', 'what works better here is', 'I'd go with X instead'. "
+        "Keep it to 3–4 sentences. No generic encouragement filler."
+    )
+
+    if cpl == 0 or best_move_san is None:
+        prompt = (
+            f"Move played: {move_san} | Classification: {classification} | Eval: {eval_str}\n\n"
+            f"This was the best move in the position. In 2–3 sentences explain why {move_san} is strong: "
+            "what does it concretely achieve? What threat does it create or prevent? "
+            "What chess principle does it embody? Speak naturally, like you're pointing it out to a friend."
+        )
+    else:
+        prompt = (
+            f"Move played: {move_san} | Classification: {classification} | "
+            f"CPL: {cpl} | Eval after: {eval_str}\n"
+            f"Stronger move: {best_move_san}\n\n"
+            f"Walk through this in 3–4 sentences, talking to a friend:\n"
+            f"1. What's the issue with {move_san} — what does it do or fail to do?\n"
+            f"2. What concrete problem does it create (weakness, tempo loss, missed threat, piece activity)?\n"
+            f"3. Why is {best_move_san} better — be specific about what it achieves that {move_san} doesn't.\n"
+            "Never say 'the engine'. Use natural phrasing like 'the better move here', 'what I'd play instead', 'the idea behind X is'."
+        )
+
+    messages = [
+        SystemMessage(content=system),
+        HumanMessage(content=prompt),
+    ]
+    t0 = time.perf_counter()
+    try:
+        response = _get_llm().invoke(messages)
+        latency_ms = (time.perf_counter() - t0) * 1000
+        tokens = (
+            getattr(response, "usage_metadata", {}).get("total_tokens", 0)
+            if hasattr(response, "usage_metadata") else 0
+        )
+        record_latency("groq", latency_ms, tokens=tokens)
+        return str(response.content).strip()
+    except Exception:
+        record_error("groq", (time.perf_counter() - t0) * 1000)
+        raise
 
 
 def explain_opponent_move(

@@ -13,7 +13,6 @@ import { playSfx, preloadSfx, type SfxName } from '../../lib/audio';
 import { getStoredThemeId, getThemeById } from '../../lib/themes';
 import { useSettings } from '../../lib/settings';
 import GameOverModal from './GameOverModal';
-import BlunderConfirmModal from './BlunderConfirmModal';
 import OpeningExplorerModal from './OpeningExplorerModal';
 import Toast from './Toast';
 import { findOpeningEntry } from '../../lib/openings-explorer';
@@ -165,17 +164,6 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
   const [boardTheme] = useState(() => getThemeById(getStoredThemeId()));
   const { settings } = useSettings();
   const [openingModalOpen, setOpeningModalOpen] = useState(false);
-
-  interface PendingMove {
-    prevFen: string;
-    gameCopy: Chess;
-    moveUci: string;
-    san: string;
-    cpl: number;
-    bestMove: string;
-    timeRemainingSecs: number | null;
-  }
-  const [pendingMove, setPendingMove] = useState<PendingMove | null>(null);
 
   const engineTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const engineFirstMoveFiredRef = useRef(false);
@@ -371,25 +359,6 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
     [concludeGame, detectResult, globalMuted, timeControl, startClock, playerColor],
   );
 
-  const handleBlunderConfirm = useCallback(() => {
-    if (!pendingMove) return;
-    const pm = pendingMove;
-    setPendingMove(null);
-    setBoardLocked(true);
-    submitMove(pm.prevFen, pm.moveUci, pm.san, pm.timeRemainingSecs)
-      .then(result => applyEngineReply(result, pm.gameCopy));
-  }, [pendingMove, submitMove, applyEngineReply]);
-
-  const handleBlunderCancel = useCallback(() => {
-    if (!pendingMove) return;
-    preMovePositionsRef.current.pop();
-    const restored = new Chess(pendingMove.prevFen);
-    setGame(restored);
-    setFen(pendingMove.prevFen);
-    setBoardLocked(false);
-    setPendingMove(null);
-  }, [pendingMove]);
-
   const onPieceDrop = useCallback(
     (sourceSquare: Square, targetSquare: Square): boolean => {
       if (boardLocked || isAnalyzing) return false;
@@ -422,26 +391,7 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
           .then(result => applyEngineReply(result, gameCopy));
       };
 
-      if (teachMode && settings.blunderConfirmMode !== 'off') {
-        void fetch(`${BACKEND_URL}/api/evaluate-premove`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ fen: prevFen, move: moveUci }),
-        })
-          .then(r => r.ok ? r.json() : null)
-          .then((data: { cpl: number; best_move: string; warning: boolean } | null) => {
-            const threshold = settings.blunderConfirmMode === 'mistakes' ? 40 : 100;
-            if (data && data.cpl > threshold) {
-              setBoardLocked(false);
-              setPendingMove({ prevFen, gameCopy, moveUci, san: move.san, cpl: data.cpl, bestMove: data.best_move, timeRemainingSecs });
-            } else {
-              proceed();
-            }
-          })
-          .catch(() => proceed());
-      } else {
-        proceed();
-      }
+      proceed();
 
       return true;
     },
@@ -562,14 +512,6 @@ export default function ChessBoard({ onChangeOpponent, onGoHome, onViewReport }:
             height={BOARD_WIDTH}
             className="absolute inset-0 pointer-events-none"
           />
-          {pendingMove && (
-            <BlunderConfirmModal
-              cpl={pendingMove.cpl}
-              bestMove={pendingMove.bestMove}
-              onConfirm={handleBlunderConfirm}
-              onCancel={handleBlunderCancel}
-            />
-          )}
           {gameOverPending && (
             <GameOverModal
               result={gameOverPending.result}

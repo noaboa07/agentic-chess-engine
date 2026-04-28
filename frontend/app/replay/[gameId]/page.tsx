@@ -1,6 +1,6 @@
 'use client';
 
-import { useEffect, useState, useCallback, useMemo } from 'react';
+import { useEffect, useState, useCallback, useMemo, useRef } from 'react';
 import { useParams } from 'next/navigation';
 import Link from 'next/link';
 import { Chessboard } from 'react-chessboard';
@@ -10,6 +10,8 @@ import EvalBar from '../../components/EvalBar';
 import type { MoveClassification } from '../../context/GameContext';
 import { useAuth } from '../../context/AuthContext';
 import { useAchievements } from '../../context/AchievementContext';
+
+const BACKEND_URL = process.env.NEXT_PUBLIC_BACKEND_URL ?? 'http://localhost:8000';
 
 const CLASSIFICATION_COLORS: Record<MoveClassification, string> = {
   brilliant: 'text-cyan-400 bg-cyan-400/10',
@@ -33,6 +35,9 @@ export default function ReplayPage() {
   const [currentIndex, setCurrentIndex] = useState(-1);
   const [isAutoPlaying, setIsAutoPlaying] = useState(false);
   const [reviewMode, setReviewMode] = useState(false);
+  const [currentAnalysis, setCurrentAnalysis] = useState<string | null>(null);
+  const [analysisLoading, setAnalysisLoading] = useState(false);
+  const analysisCache = useRef<Record<number, string>>({});
   const { user } = useAuth();
   const { awardAchievement } = useAchievements();
 
@@ -55,6 +60,49 @@ export default function ReplayPage() {
     const t = setTimeout(() => setCurrentIndex(i => i + 1), 800);
     return () => clearTimeout(t);
   }, [isAutoPlaying, currentIndex, game]);
+
+  // GM analysis — debounced so rapid arrow-key nav doesn't spam the API
+  useEffect(() => {
+    if (isAutoPlaying || currentIndex < 0 || !game) {
+      setCurrentAnalysis(null);
+      return;
+    }
+    if (analysisCache.current[currentIndex] !== undefined) {
+      setCurrentAnalysis(analysisCache.current[currentIndex]);
+      return;
+    }
+    setCurrentAnalysis(null);
+    setAnalysisLoading(true);
+    const move = game.moves[currentIndex];
+    const fenBefore = currentIndex === 0 ? new Chess().fen() : game.moves[currentIndex - 1].fen;
+    const timer = setTimeout(async () => {
+      try {
+        const res = await fetch(`${BACKEND_URL}/api/replay-analysis`, {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            fen_before: fenBefore,
+            move_san: move.san,
+            classification: move.classification,
+            cpl: move.cpl,
+            best_move: move.bestMove ?? null,
+            evaluation: move.evaluation ?? null,
+          }),
+        });
+        if (res.ok) {
+          const data = (await res.json()) as { analysis: string };
+          analysisCache.current[currentIndex] = data.analysis;
+          setCurrentAnalysis(data.analysis);
+        }
+      } catch {
+        // silently ignore — analysis is best-effort
+      } finally {
+        setAnalysisLoading(false);
+      }
+    }, 600);
+    return () => { clearTimeout(timer); setAnalysisLoading(false); };
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [currentIndex, isAutoPlaying]);
 
   const prev = useCallback(() => {
     setIsAutoPlaying(false);
@@ -235,6 +283,23 @@ export default function ReplayPage() {
             ) : (
               <div className="rounded-xl border border-zinc-800 bg-zinc-900 p-4">
                 <p className="text-xs text-zinc-500 text-center">Click a move or press Play to start the replay</p>
+              </div>
+            )}
+
+            {/* GM Analysis panel */}
+            {currentIndex >= 0 && (
+              <div className="rounded-xl border border-zinc-700/60 bg-zinc-900/80 p-4 space-y-2">
+                <div className="flex items-center gap-2">
+                  <span className="text-xs font-semibold text-zinc-400 uppercase tracking-widest">♟ GM Analysis</span>
+                  {analysisLoading && (
+                    <div className="h-3 w-3 animate-spin rounded-full border border-zinc-600 border-t-zinc-300" />
+                  )}
+                </div>
+                {currentAnalysis ? (
+                  <p className="text-xs text-zinc-200 leading-relaxed">{currentAnalysis}</p>
+                ) : !analysisLoading ? (
+                  <p className="text-xs text-zinc-600">Select a move to see analysis.</p>
+                ) : null}
               </div>
             )}
 

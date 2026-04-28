@@ -1,13 +1,22 @@
 'use client';
 
 import { useGame } from '../context/GameContext';
+import PersonaSpeechBubble from './PersonaSpeechBubble';
 
 export default function PersonaPanel() {
-  const { activePersona, userModeElo, timeControl } = useGame();
+  const { activePersona, userModeElo, timeControl, activeSpeech } = useGame();
   const modeLabel = timeControl?.label ?? 'Untimed';
 
   return (
-    <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 w-full max-w-[560px]">
+    <div className="relative w-full max-w-[560px]">
+      {activeSpeech && (
+        <PersonaSpeechBubble
+          key={activeSpeech.key}
+          text={activeSpeech.text}
+          persistent={activeSpeech.persistent}
+        />
+      )}
+      <div className="flex items-center gap-3 rounded-lg border border-white/10 bg-zinc-900 px-4 py-3 w-full">
       <div className="h-12 w-12 flex-shrink-0 overflow-hidden rounded-full border border-white/20 bg-zinc-800">
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img
@@ -29,6 +38,7 @@ export default function PersonaPanel() {
             <p className="text-xs font-mono text-indigo-300">You: {userModeElo} <span className="text-indigo-500">{modeLabel}</span></p>
           </div>
         )}
+      </div>
       </div>
     </div>
   );

@@ -13,7 +13,7 @@ from slowapi import Limiter
 from slowapi.util import get_remote_address
 from slowapi.errors import RateLimitExceeded
 from services.stockfish import analyze_move, get_engine_first_move
-from services.coach import get_coaching_message, generate_coach_report, on_opening_identified, explain_why_not
+from services.coach import get_coaching_message, generate_coach_report, on_opening_identified, explain_why_not, analyze_replay_move
 from services.debate import get_debate_transcript, reset_debate_counter
 from services.tts import generate_speech
 from services.telemetry import record_latency, record_error, get_stats
@@ -146,6 +146,15 @@ class ExplainOpponentMoveRequest(BaseModel):
     player_color: str = "white"
 
 
+class ReplayAnalysisRequest(BaseModel):
+    fen_before: str
+    move_san: str
+    classification: str
+    cpl: int
+    best_move: str | None = None
+    evaluation: float | None = None
+
+
 class EloCalculateRequest(BaseModel):
     player_elo: int
     opponent_elo: int
@@ -198,6 +207,7 @@ def process_move(request: Request, req: MoveRequest):
             target_elo=persona.elo,
             strategy=persona.strategy,
             time_remaining_secs=req.time_remaining_secs,
+            skill_level_out_of_book=persona.skill_level_out_of_book,
         )
         record_latency("stockfish", (time.perf_counter() - sf_t0) * 1000)
 
@@ -225,12 +235,18 @@ def process_move(request: Request, req: MoveRequest):
             except Exception:
                 coach_message = None
 
+        # Reset debate counter on the first move of any game (covers white-side games
+        # where engine-first-move is never called and the counter would carry over).
+        if req.move_number == 1:
+            reset_debate_counter(user_id)
+
         cpl = max(0, -result.eval_delta)
         debate_transcript = None
         debate_skipped = False
         try:
             debate_transcript, debate_skipped = get_debate_transcript(
-                result.top_lines, cpl, req.persona, session_key=user_id,
+                result.top_lines, cpl, req.persona,
+                session_key=user_id, fen=req.fen,
             )
         except Exception:
             debate_transcript = None
@@ -266,6 +282,7 @@ def engine_first_move(request: Request, req: EngineFirstMoveRequest) -> dict:
             req.fen, persona.elo,
             strategy=persona.strategy,
             time_remaining_secs=req.time_remaining_secs,
+            skill_level_out_of_book=persona.skill_level_out_of_book,
         )
         return {"engine_move": move}
     except Exception as e:
@@ -386,7 +403,8 @@ def evaluate_premove(request: Request, req: EvaluatePreMoveRequest) -> dict:
 
         delta = (cp_after - cp_before) if moving_color == chess.WHITE else -(cp_after - cp_before)
         cpl = max(0, -delta)
-        classification = _classify(cpl, delta)
+        cp_after_mover = cp_after if moving_color == chess.WHITE else -cp_after
+        classification = _classify(cpl, delta, cp_after_mover)
         return {"cpl": cpl, "classification": classification, "best_move": best_move, "warning": cpl > 100}
     except HTTPException:
         raise
@@ -407,6 +425,29 @@ def explain_opponent_move_endpoint(request: Request, req: ExplainOpponentMoveReq
         from services.coach import explain_opponent_move
         explanation = explain_opponent_move(req.fen_before, req.engine_move, req.persona_id)
         return {"explanation": explanation}
+    except Exception as e:
+        import traceback
+        traceback.print_exc()
+        raise HTTPException(status_code=500, detail=str(e))
+
+
+@app.post("/api/replay-analysis")
+@limiter.limit("30/minute")
+def replay_analysis_endpoint(request: Request, req: ReplayAnalysisRequest):
+    user_id = _get_jwt_user_id(request)
+    allowed, retry_after = _check_user_limit(user_id, limit=20, window_secs=60)
+    if not allowed:
+        return _rate_limited_response(retry_after)
+    try:
+        analysis = analyze_replay_move(
+            fen_before=req.fen_before,
+            move_san=req.move_san,
+            classification=req.classification,
+            cpl=req.cpl,
+            best_move_uci=req.best_move,
+            evaluation=req.evaluation,
+        )
+        return {"analysis": analysis}
     except Exception as e:
         import traceback
         traceback.print_exc()

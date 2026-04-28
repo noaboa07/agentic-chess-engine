@@ -12,6 +12,7 @@ STOCKFISH_PATH = os.getenv("STOCKFISH_PATH") or _DEFAULT_SF_PATH
 DEPTH = 15
 _UCI_ELO_MIN = 1320   # Stockfish's minimum supported UCI_Elo
 _PURE_RANDOM_MAX = 600  # At or below this Elo: 100% random moves, no engine evaluation
+_PIECE_VALUES = {chess.PAWN: 1, chess.KNIGHT: 3, chess.BISHOP: 3, chess.ROOK: 5, chess.QUEEN: 9}
 
 
 @dataclass
@@ -37,29 +38,64 @@ def _score_to_cp(score: chess.engine.PovScore) -> int:
     return white.score() or 0
 
 
-def _classify(cpl: int, delta: int, cp_after_mover: int) -> str:
-    """
-    cpl:            centipawn loss vs engine's best move (0 = played best move)
-    delta:          how much the position improved for the mover after this move
-    cp_after_mover: evaluation after the move from the MOVER's perspective
-                    (positive = mover is winning, negative = mover is losing)
+def _material(board: chess.Board, color: chess.Color) -> int:
+    """Total material value (in pawns) for one side. Kings excluded."""
+    return sum(
+        _PIECE_VALUES.get(pt, 0) * len(board.pieces(pt, color))
+        for pt in _PIECE_VALUES
+    )
 
-    Brilliant requires all three:
-      - played the engine's top choice (cpl == 0)
-      - position improved significantly (delta > 50)
-      - mover is actually winning after the move (cp_after_mover > 0)
-    Without the third guard, a "best try" queen sac in a losing position can
-    fire as brilliant just because the horizon effect shows a slightly less-bad line.
+
+def _is_sacrifice(board: chess.Board, move: chess.Move) -> bool:
     """
-    if cpl == 0 and delta > 50 and cp_after_mover > 0:
+    Returns True if the move gives up material — either a down-trade capture
+    (e.g. Rook takes Knight) or a quiet move that walks into a cheaper recapture.
+    Used to gate the 'brilliant' classification.
+    """
+    moving_piece = board.piece_at(move.from_square)
+    if moving_piece is None:
+        return False
+    mover_value = _PIECE_VALUES.get(moving_piece.piece_type, 0)
+    captured = board.piece_at(move.to_square)
+    captured_value = _PIECE_VALUES.get(captured.piece_type, 0) if captured else 0
+
+    # Exchange sacrifice: capturing with a piece worth more than what is taken
+    if mover_value > captured_value + 1:
+        return True
+
+    # Quiet sacrifice: moving into a square where a cheaper opponent piece can recapture
+    board_copy = board.copy()
+    board_copy.push(move)
+    opponent = not board.turn
+    for sq in board_copy.attackers(opponent, move.to_square):
+        attacker = board_copy.piece_at(sq)
+        if attacker and _PIECE_VALUES.get(attacker.piece_type, 0) < mover_value - 1:
+            return True
+
+    return False
+
+
+def _classify(cpl: int, delta: int, cp_after_mover: int, sacrifice: bool = False) -> str:
+    """
+    Classify a move by centipawn loss and positional context.
+
+    Thresholds (Lichess/Chess.com aligned):
+      Brilliant: best move + position improved ≥50cp + winning + material sacrifice
+      Great:     best move (CPL=0) + position improved >20cp
+      Good:      CPL ≤ 20 (very close to best move)
+      Inaccuracy: CPL ≤ 60
+      Mistake:   CPL ≤ 150
+      Blunder:   CPL > 150
+    """
+    if cpl == 0 and delta > 50 and cp_after_mover > 0 and sacrifice:
         return "brilliant"
-    if cpl == 0:
+    if cpl == 0 and delta > 20:
         return "great"
-    if cpl <= 40:
+    if cpl <= 20:
         return "good"
-    if cpl <= 90:
+    if cpl <= 60:
         return "inaccuracy"
-    if cpl <= 200:
+    if cpl <= 150:
         return "mistake"
     return "blunder"
 
@@ -70,6 +106,7 @@ def _engine_reply(
     target_elo: int,
     strategy: StrategyProfile | None = None,
     time_remaining_secs: float | None = None,
+    skill_level_out_of_book: int | None = None,
 ) -> str:
     """
     Select an engine reply calibrated to target_elo, optionally shaped by a StrategyProfile.
@@ -78,17 +115,36 @@ def _engine_reply(
     depth-1/skill-0 moves. The lower the Elo, the higher the random fraction.
     At 1320+, we hand off to UCI_LimitStrength which is properly calibrated.
 
-    When a StrategyProfile is provided, blunder_chance injects a sub-optimal MultiPV
-    candidate before the UCI path runs, making each agent play stylistically differently.
+    StrategyProfile fields implemented here:
+      opening_bias       — steers first 4 moves toward defined openings (85% probability)
+      blunder_chance     — injects sub-optimal MultiPV candidate
+      search_time_ms     — hard time cap on engine search (e.g. Boros 100ms)
+      no_tactical_bias   — prefers non-capturing moves (Lady Vipra)
+      skill_level_out_of_book — drops to lower skill after move 22 (Tobias)
     """
     legal_moves = list(board.legal_moves)
     if not legal_moves:
         return ""
 
     if target_elo <= _PURE_RANDOM_MAX:
-        # Petey (150), Sir Trades (300), Fianchetto Friar (500): zero engine evaluation — pure chaos.
-        # Even depth=1 Stockfish sees Scholar's Mate threats; random moves don't.
         return random.choice(legal_moves).uci()
+
+    # Opening bias: steer moves 1–4 (first 8 half-moves) toward the persona's preferred lines.
+    # Handles both lowercase SAN ("nf3") and standard SAN ("Nf3") via first-char capitalisation.
+    if strategy is not None and strategy.opening_bias and len(board.move_stack) < 8:
+        bias_moves: list[chess.Move] = []
+        for san in strategy.opening_bias:
+            candidates_san = {san, san[0].upper() + san[1:]} if san else {san}
+            for candidate_san in candidates_san:
+                try:
+                    m = board.parse_san(candidate_san)
+                    if m in board.legal_moves:
+                        bias_moves.append(m)
+                        break
+                except (chess.InvalidMoveError, chess.IllegalMoveError, chess.AmbiguousMoveError, ValueError):
+                    pass
+        if bias_moves and random.random() < 0.85:
+            return random.choice(bias_moves).uci()
 
     # Strategy-based blunder injection: pick a sub-optimal candidate from MultiPV lines.
     # Runs before the UCI path so it applies to both the blended and calibrated zones.
@@ -113,7 +169,6 @@ def _engine_reply(
             infos = engine.analyse(board, chess.engine.Limit(depth=depth), multipv=n_lines)
             candidates = [info["pv"][0].uci() for info in infos if info.get("pv")]
             if len(candidates) >= 2:
-                # Pick from the weaker lines — not the engine's top choice
                 return random.choice(candidates[1:])
 
     if target_elo < _UCI_ELO_MIN:
@@ -129,7 +184,17 @@ def _engine_reply(
         result = engine.play(board, chess.engine.Limit(depth=1))
         return result.move.uci() if result.move else random.choice(legal_moves).uci()
 
-    # 1320+ Elo: UCI_LimitStrength is properly calibrated to real Elo ratings
+    # Out-of-book collapse: after 22 half-moves, Tobias (and any future split-skill persona)
+    # drops from UCI_Elo to a weaker Skill Level, simulating theory collapse off-book.
+    if skill_level_out_of_book is not None and len(board.move_stack) > 22:
+        try:
+            engine.configure({"UCI_LimitStrength": False, "Skill Level": skill_level_out_of_book})
+        except chess.engine.EngineError:
+            pass
+        result = engine.play(board, chess.engine.Limit(depth=DEPTH))
+        return result.move.uci() if result.move else ""
+
+    # 1320+ Elo: UCI_LimitStrength is properly calibrated to real Elo ratings.
     try:
         engine.configure({"UCI_LimitStrength": True, "UCI_Elo": min(target_elo, 3190)})
     except chess.engine.EngineError:
@@ -139,7 +204,23 @@ def _engine_reply(
             engine.configure({"UCI_LimitStrength": False, "Skill Level": sl})
         except chess.engine.EngineError:
             pass
-    result = engine.play(board, chess.engine.Limit(depth=DEPTH))
+
+    # Search limit: honour search_time_ms hard cap (e.g. Boros 100ms), otherwise depth.
+    if strategy is not None and strategy.search_time_ms is not None:
+        play_limit = chess.engine.Limit(time=strategy.search_time_ms / 1000.0)
+    else:
+        play_limit = chess.engine.Limit(depth=DEPTH)
+
+    # no_tactical_bias: prefer non-capturing moves from top candidates (Lady Vipra's positional play).
+    if strategy is not None and strategy.no_tactical_bias:
+        top_infos = engine.analyse(board, play_limit, multipv=3)
+        top_moves = [info["pv"][0] for info in top_infos if info.get("pv")]
+        non_captures = [m for m in top_moves if not board.is_capture(m)]
+        if non_captures:
+            return non_captures[0].uci()
+        # All top candidates are captures — fall through to normal play
+
+    result = engine.play(board, play_limit)
     return result.move.uci() if result.move else ""
 
 
@@ -148,11 +229,12 @@ def get_engine_first_move(
     target_elo: int,
     strategy: StrategyProfile | None = None,
     time_remaining_secs: float | None = None,
+    skill_level_out_of_book: int | None = None,
 ) -> str:
     """Return the engine's opening move when the player is playing as black."""
     board = chess.Board(fen)
     with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
-        return _engine_reply(engine, board, target_elo, strategy, time_remaining_secs)
+        return _engine_reply(engine, board, target_elo, strategy, time_remaining_secs, skill_level_out_of_book)
 
 
 def analyze_move(
@@ -163,6 +245,7 @@ def analyze_move(
     target_elo: int = 2700,
     strategy: StrategyProfile | None = None,
     time_remaining_secs: float | None = None,
+    skill_level_out_of_book: int | None = None,
 ) -> MoveAnalysis:
     board = chess.Board(fen)
     move = chess.Move.from_uci(move_uci)
@@ -171,6 +254,7 @@ def analyze_move(
         raise ValueError(f"Illegal move: {move_uci}")
 
     moving_color = board.turn
+    sacrifice = _is_sacrifice(board, move)
 
     with chess.engine.SimpleEngine.popen_uci(STOCKFISH_PATH) as engine:
         # Use MultiPV=3 to collect top candidate lines for the debate transcript.
@@ -204,16 +288,15 @@ def analyze_move(
         else:
             info_after = engine.analyse(board, chess.engine.Limit(depth=DEPTH))
             cp_after = _score_to_cp(info_after["score"])
-            engine_move = _engine_reply(engine, board, target_elo, strategy, time_remaining_secs)
+            engine_move = _engine_reply(engine, board, target_elo, strategy, time_remaining_secs, skill_level_out_of_book)
 
     delta = (cp_after - cp_before) if moving_color == chess.WHITE else -(cp_after - cp_before)
     cpl = max(0, -delta)
     cp_after_mover = cp_after if moving_color == chess.WHITE else -cp_after
-    classification = _classify(cpl, delta, cp_after_mover)
+    classification = _classify(cpl, delta, cp_after_mover, sacrifice)
 
-    # Opening exemption (moves 1–10): soften classifications one tier.
-    # inaccuracy → good, mistake → inaccuracy.
-    # Blunders (CPL > 200) are never softened — those are real errors at any stage.
+    # Opening exemption (moves 1–10): soften inaccuracy→good, mistake→inaccuracy.
+    # Blunders (CPL > 150) are never softened — a blunder in the opening is still a blunder.
     if len(board.move_stack) <= 10:
         if classification == "inaccuracy":
             classification = "good"

@@ -4,7 +4,6 @@ export interface AppSettings {
   showLegalMoves: boolean;
   showArrows: boolean;
   autoQueenPromotion: boolean;
-  blunderConfirmMode: 'off' | 'blunders' | 'mistakes';
   defaultTeachMode: boolean;
   defaultTimeControlId: string;
   confirmResign: boolean;
@@ -16,7 +15,6 @@ const DEFAULTS: AppSettings = {
   showLegalMoves: true,
   showArrows: true,
   autoQueenPromotion: true,
-  blunderConfirmMode: 'blunders',
   defaultTeachMode: false,
   defaultTimeControlId: 'untimed',
   confirmResign: true,
