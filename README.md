@@ -17,6 +17,12 @@
 
 </div>
 
+<br/>
+<div align="center">
+  <img src="./assets/LandingPage.png" alt="Caïssa Landing Page" width="100%" />
+</div>
+<br/>
+
 ---
 
 ## The Concept
@@ -73,6 +79,11 @@ Each agent uses a **tiered engine backend**: randomized move selection at the lo
 ---
 
 ### 🗺 Campaign / Progression System
+
+<div align="center">
+  <img src="./assets/Campaign.png" alt="The Hells of Caïssa Campaign Ladder" width="100%" />
+</div>
+<br/>
 
 A linear unlock chain lets you descend through all 15 Generals with structured learning goals. Each General teaches a specific chess concept:
 
@@ -158,6 +169,11 @@ Two agents at similar Elo can play very differently: one might be solid position
 
 ### 🎙 AI Coaching & Teach Mode
 
+<div align="center">
+  <img src="./assets/FreePlay.png" alt="Teach Mode and Real-Time Coaching" width="100%" />
+</div>
+<br/>
+
 Toggle **Teach Mode** before a game to activate the full coaching pipeline:
 
 - **Real-time move classification** — every move scored as Brilliant / Great / Good / Inaccuracy / Mistake / Blunder via Stockfish centipawn loss (opening exemption: inaccuracies in moves 1–10 auto-upgraded to Good)
@@ -184,6 +200,11 @@ The board applies the move visually immediately for responsiveness, then either 
 
 ### 🤔 "Why Did the AI Play That?"
 
+<div align="center">
+  <img src="./assets/ExplainLastMove.png" alt="AI Move Explanation" width="80%" />
+</div>
+<br/>
+
 After every engine move in Teach Mode, a **"Why did AI play that?"** button appears in the coach panel. Clicking calls `/api/explain-opponent-move`, which generates a 2–3 sentence explanation of the engine's reasoning — in the persona's own voice. The response appears in an indigo callout panel and is gated: one explanation per AI move, re-enabled after the next engine reply.
 
 ---
@@ -195,6 +216,11 @@ In Teach Mode, **right-click any legal move dot** to ask the coach why that cand
 ---
 
 ### ⚖️ Move Debate Multi-Agent System
+
+<div align="center">
+  <img src="./assets/DebatePanel.png" alt="Multi-Agent Move Debate Panel" width="80%" />
+</div>
+<br/>
 
 When your move is a significant error (CPL > 50), three internal agents debate the position using the top Stockfish MultiPV candidates:
 
