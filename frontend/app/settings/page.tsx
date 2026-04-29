@@ -2,7 +2,7 @@
 
 import Link from 'next/link';
 import { BOARD_THEMES, getStoredThemeId, storeThemeId, type BoardTheme } from '../../lib/themes';
-import { useSettings, type AppSettings } from '../../lib/settings';
+import { useSettings } from '../../lib/settings';
 import { TIME_CONTROLS } from '../context/GameContext';
 
 // ── Sub-components ────────────────────────────────────────────────────────────
